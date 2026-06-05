@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  --sand:          #DDD4B9;
+  --olive:         #49422B;
+  --charcoal:      #26231A;
+  --white:         #FFFFFF;
+  --black:         #000000;
+
+  /* Functional aliases */
+  --bg-page:       var(--sand);
+  --bg-card:       var(--white);
+  --bg-band:       var(--charcoal);
+  --bg-footer:     var(--charcoal);
+
+  --text-primary:  var(--black);
+  --text-heading:  var(--olive);
+  --text-on-dark:  var(--white);
+  --text-muted:    #7A7462;       /* olive at 60% intensity */
+
+  --border:        #C8BFA6;       /* sand darkened for borders */
+  --border-light:  #E8E1CC;       /* sand lightened for subtle dividers */
+
+  --accent:        var(--olive);   /* no separate accent — olive IS the accent */
+  --link:          var(--olive);
+  --link-hover:    #332D1C;        /* olive darkened */
+
+  /* Focus & interaction */
+  --focus-ring:    var(--olive);   /* 2px solid, offset 2px */
+
+  /* Skeleton / loading */
+  --skeleton-base: #D0C8AD;       /* sand darkened slightly */
+  --skeleton-shine:#E8E1CC;       /* sand lightened for shimmer */
+
+  /* Z-index scale */
+  --z-dropdown:    10;
+  --z-sticky:      20;
+  --z-overlay:     30;
+  --z-modal:       40;
+  --z-toast:       50;
+}
+
+@theme {
+  --font-serif: var(--font-lora), Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: var(--font-montserrat), "Helvetica Neue", Arial, sans-serif;
+  --font-lato: var(--font-lato), "Helvetica Neue", Arial, sans-serif;
+
+  --color-sand: var(--sand);
+  --color-olive: var(--olive);
+  --color-charcoal: var(--charcoal);
+  --color-white: var(--white);
+  --color-black: var(--black);
+
+  --color-bg-page: var(--bg-page);
+  --color-bg-card: var(--bg-card);
+  --color-bg-band: var(--bg-band);
+  --color-bg-footer: var(--bg-footer);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-heading: var(--text-heading);
+  --color-text-on-dark: var(--text-on-dark);
+  --color-text-muted: var(--text-muted);
+
+  --color-border-custom: var(--border);
+  --color-border-light: var(--border-light);
+
+  --color-accent-custom: var(--accent);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+
+  --color-skeleton-base: var(--skeleton-base);
+  --color-skeleton-shine: var(--skeleton-shine);
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-shine) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background: var(--skeleton-base);
+  }
+}
