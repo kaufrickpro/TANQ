@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import db from '@/lib/db';
 import { Archive } from 'lucide-react';
+import JournalCover from '@/components/journal/JournalCover';
 
 interface Issue {
   id: number;
@@ -152,14 +153,7 @@ export default async function ArchivesPage() {
                 >
                   {/* Issue Cover Thumbnail */}
                   <div className="flex justify-center mb-4">
-                    <div className="relative w-36 aspect-[3/4] shadow-sm border border-border-light overflow-hidden">
-                      <Image 
-                        src="/images/TANQ.png" 
-                        alt="Issue Cover" 
-                        fill 
-                        className="object-cover" 
-                      />
-                    </div>
+                    <JournalCover size="sm" />
                   </div>
 
                   {/* Issue Info */}

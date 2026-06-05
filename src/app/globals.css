@@ -100,3 +100,27 @@ body {
     background: var(--skeleton-base);
   }
 }
+
+/* 3D Book Layout Utilities */
+.book-perspective {
+  perspective: 1500px;
+}
+
+.book-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+/* Custom shadow to give depth to the book cover */
+.book-shadow {
+  box-shadow: 
+    0 1px 1px rgba(0, 0, 0, 0.15), 
+    0 8px 16px -8px rgba(73, 66, 43, 0.4),
+    1px 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.book-shadow-hover {
+  box-shadow: 
+    0 1px 1px rgba(0, 0, 0, 0.08), 
+    0 25px 40px -15px rgba(73, 66, 43, 0.5),
+    4px 4px 10px rgba(0, 0, 0, 0.12);
+}

@@ -104,11 +104,11 @@ export default async function SearchPage({ searchParams }: PageProps) {
                 <p className="text-sm text-text-primary/80 line-clamp-3 mb-4 leading-relaxed font-serif">
                   {article.abstract}
                 </p>
-                <div className="border-t border-border-light pt-3 flex items-center justify-between text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
-                  <span>Published: <span className="normal-case font-normal text-text-primary">{article.date_published}</span></span>
-                  <div className="flex gap-4">
+                <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
+                  <span className="min-w-0">Published: <span className="normal-case font-normal text-text-primary break-all">{article.date_published}</span></span>
+                  <div className="flex gap-4 shrink-0">
                     <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                    <a href={article.pdf_url} download className="text-link hover:text-link-hover">PDF ↓</a>
+                    <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                   </div>
                 </div>
               </div>

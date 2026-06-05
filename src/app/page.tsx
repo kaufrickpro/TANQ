@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import db from '@/lib/db';
+import JournalCover from '@/components/journal/JournalCover';
 
 interface Article {
   id: number;
@@ -79,15 +80,7 @@ export default async function Home() {
 
             {/* Right Column: Current Issue Cover */}
             <div className="md:col-span-4 flex justify-center md:justify-end">
-              <div className="relative w-48 sm:w-56 aspect-[3/4] shadow-md border border-border-custom rounded-sm overflow-hidden">
-                <Image 
-                  src="/images/TANQ.png" 
-                  alt="Current Issue Cover" 
-                  fill 
-                  className="object-cover" 
-                  priority
-                />
-              </div>
+              <JournalCover size="md" priority />
             </div>
           </div>
         </div>
@@ -129,11 +122,11 @@ export default async function Home() {
                       <p className="text-sm text-text-primary/80 line-clamp-3 mb-4 leading-relaxed font-serif">
                         {article.abstract}
                       </p>
-                      <div className="border-t border-border-light pt-3 flex items-center justify-between text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
-                        <span>DOI: <span className="normal-case font-normal text-text-primary">{article.doi}</span></span>
-                        <div className="flex gap-4">
+                      <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
+                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <div className="flex gap-4 shrink-0">
                           <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                          <a href={article.pdf_url} download className="text-link hover:text-link-hover">PDF ↓</a>
+                          <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>
                     </div>
@@ -164,11 +157,11 @@ export default async function Home() {
                       <p className="text-sm text-text-primary/80 line-clamp-3 mb-4 leading-relaxed font-serif">
                         {article.abstract}
                       </p>
-                      <div className="border-t border-border-light pt-3 flex items-center justify-between text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
-                        <span>DOI: <span className="normal-case font-normal text-text-primary">{article.doi}</span></span>
-                        <div className="flex gap-4">
+                      <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
+                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <div className="flex gap-4 shrink-0">
                           <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                          <a href={article.pdf_url} download className="text-link hover:text-link-hover">PDF ↓</a>
+                          <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>
                     </div>
