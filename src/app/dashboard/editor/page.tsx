@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, RefreshCw, AlertCircle, PlusCircle, BookOpen } from 'lucide-react';
+import { CheckCircle, RefreshCw, AlertCircle, PlusCircle, BookOpen, FileText } from 'lucide-react';
 
 // Import subcomponents & custom hook
 import VolumePdfManager from './_components/VolumePdfManager';
@@ -119,6 +119,7 @@ export default function EditorDashboard() {
     existingIssuePdfFile,
     setExistingIssuePdfFile,
     uploadingIssuePdf,
+    handleUploadExistingIssuePdf,
     success,
     setSuccess,
     error,
@@ -137,7 +138,6 @@ export default function EditorDashboard() {
     handlePublishArticle,
     handleCreateIssue,
     handleUploadVolumePdf,
-    handleUploadExistingIssuePdf,
     getStatusColor
   } = useEditorDashboard();
 
@@ -145,13 +145,13 @@ export default function EditorDashboard() {
 
   return (
     <div className="flex-1 max-w-[1120px] mx-auto w-full px-6 sm:px-8 py-12 font-serif grid grid-cols-1 lg:grid-cols-12 gap-8 items-start bg-bg-page">
-      {/* Left Panel: Submissions queue or Invitation manager */}
+      {/* Left Panel: Submissions queue, Issues/Volumes manager, or Invitation manager */}
       <div className="lg:col-span-6 space-y-6">
-        <div className="flex justify-between items-center border-b border-border-custom pb-3">
-          <div className="flex gap-4">
+        <div className="flex justify-between items-end border-b border-border-custom">
+          <div className="flex gap-4 -mb-[1px]">
             <button
               onClick={() => setEditorView('queue')}
-              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-1 border-b-2 ${
+              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
                 editorView === 'queue' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
               }`}
             >
@@ -159,10 +159,20 @@ export default function EditorDashboard() {
             </button>
             <button
               onClick={() => {
+                setEditorView('issues');
+              }}
+              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
+                editorView === 'issues' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
+              }`}
+            >
+              Issues & Volumes
+            </button>
+            <button
+              onClick={() => {
                 setEditorView('invites');
                 fetchInvites();
               }}
-              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-1 border-b-2 ${
+              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
                 editorView === 'invites' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
               }`}
             >
@@ -170,36 +180,13 @@ export default function EditorDashboard() {
             </button>
           </div>
           
-          <div className="flex items-center gap-2 font-sans text-[11px] font-bold uppercase tracking-wider">
-            {editorView === 'queue' ? (
-              <>
-                <button
-                  onClick={() => setShowVolumePdf(!showVolumePdf)}
-                  className="inline-flex items-center gap-1.5 bg-bg-card text-olive border border-border-custom hover:bg-sand/10 px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
-                >
-                  <BookOpen size={12} /> Volume PDF
-                </button>
-                <button
-                  onClick={() => setShowNewIssue(!showNewIssue)}
-                  className="inline-flex items-center gap-1.5 bg-olive text-white hover:bg-link-hover px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
-                >
-                  <PlusCircle size={12} /> Create Issue
-                </button>
-                <button 
-                  onClick={fetchData}
-                  className="p-1.5 text-text-muted hover:text-olive border border-border-custom bg-bg-card hover:bg-sand/10 rounded-sm cursor-pointer transition-colors"
-                >
-                  <RefreshCw size={14} />
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={fetchInvites}
-                className="p-1.5 text-text-muted hover:text-olive border border-border-custom bg-bg-card hover:bg-sand/10 rounded-sm cursor-pointer transition-colors"
-              >
-                <RefreshCw size={14} />
-              </button>
-            )}
+          <div className="flex items-center gap-2 pb-3 font-sans text-[11px] font-bold uppercase tracking-wider">
+            <button 
+              onClick={editorView === 'invites' ? fetchInvites : fetchData}
+              className="inline-flex items-center justify-center w-[29px] h-[29px] text-text-muted hover:text-olive border border-border-custom bg-bg-card hover:bg-sand/10 rounded-sm cursor-pointer transition-colors"
+            >
+              <RefreshCw size={12} />
+            </button>
           </div>
         </div>
 
@@ -218,54 +205,6 @@ export default function EditorDashboard() {
 
         {editorView === 'queue' && (
           <>
-            {/* Volume PDF manager component */}
-            {showVolumePdf && (
-              <VolumePdfManager
-                volumes={volumes}
-                issues={issues}
-                volumePdfNumber={volumePdfNumber}
-                setVolumePdfNumber={setVolumePdfNumber}
-                volumePdfYear={volumePdfYear}
-                setVolumePdfYear={setVolumePdfYear}
-                volumePdfTitle={volumePdfTitle}
-                setVolumePdfTitle={setVolumePdfTitle}
-                volumePdfSubtitle={volumePdfSubtitle}
-                setVolumePdfSubtitle={setVolumePdfSubtitle}
-                volumePdfFile={volumePdfFile}
-                setVolumePdfFile={setVolumePdfFile}
-                uploadingVolumePdf={uploadingVolumePdf}
-                handleUploadVolumePdf={handleUploadVolumePdf}
-                issuePdfIssueId={issuePdfIssueId}
-                setIssuePdfIssueId={setIssuePdfIssueId}
-                existingIssuePdfFile={existingIssuePdfFile}
-                setExistingIssuePdfFile={setExistingIssuePdfFile}
-                uploadingIssuePdf={uploadingIssuePdf}
-                handleUploadExistingIssuePdf={handleUploadExistingIssuePdf}
-                setShowVolumePdf={setShowVolumePdf}
-              />
-            )}
-
-            {/* Issue creation form block component */}
-            {showNewIssue && (
-              <NewIssueForm
-                vol={vol}
-                setVol={setVol}
-                num={num}
-                setNum={setNum}
-                year={year}
-                setYear={setYear}
-                month={month}
-                setMonth={setMonth}
-                issueTitle={issueTitle}
-                setIssueTitle={setIssueTitle}
-                issuePdfFile={issuePdfFile}
-                setIssuePdfFile={setIssuePdfFile}
-                creatingIssue={creatingIssue}
-                handleCreateIssue={handleCreateIssue}
-                setShowNewIssue={setShowNewIssue}
-              />
-            )}
-
             {loading ? (
               <p className="text-xs text-text-muted font-sans font-bold uppercase tracking-wider">Loading editor queue...</p>
             ) : submissions.length === 0 ? (
@@ -299,6 +238,163 @@ export default function EditorDashboard() {
               </div>
             )}
           </>
+        )}
+
+        {editorView === 'issues' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-bg-card border border-border-custom p-4 rounded-sm">
+              <div className="min-w-0">
+                <h3 className="font-serif font-bold text-sm text-text-heading uppercase tracking-wide">Issues & Volumes</h3>
+                <p className="text-[10px] text-text-muted mt-0.5 font-serif truncate">Configure journal issues, publish new volumes, and attach full PDFs.</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setShowNewIssue(true);
+                    setShowVolumePdf(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-sm font-sans text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
+                    showNewIssue 
+                      ? 'bg-olive text-white border-olive' 
+                      : 'bg-bg-card text-olive border-border-custom hover:bg-sand/10'
+                  }`}
+                >
+                  Create Issue
+                </button>
+                <button
+                  onClick={() => {
+                    setShowVolumePdf(true);
+                    setShowNewIssue(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-sm font-sans text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
+                    showVolumePdf 
+                      ? 'bg-olive text-white border-olive' 
+                      : 'bg-bg-card text-olive border-border-custom hover:bg-sand/10'
+                  }`}
+                >
+                  Volume Manager
+                </button>
+              </div>
+            </div>
+
+            {showNewIssue && (
+              <NewIssueForm
+                vol={vol}
+                setVol={setVol}
+                num={num}
+                setNum={setNum}
+                year={year}
+                setYear={setYear}
+                month={month}
+                setMonth={setMonth}
+                issueTitle={issueTitle}
+                setIssueTitle={setIssueTitle}
+                issuePdfFile={issuePdfFile}
+                setIssuePdfFile={setIssuePdfFile}
+                creatingIssue={creatingIssue}
+                handleCreateIssue={handleCreateIssue}
+                setShowNewIssue={setShowNewIssue}
+              />
+            )}
+
+            {showVolumePdf && (
+              <VolumePdfManager
+                volumes={volumes}
+                issues={issues}
+                volumePdfNumber={volumePdfNumber}
+                setVolumePdfNumber={setVolumePdfNumber}
+                volumePdfYear={volumePdfYear}
+                setVolumePdfYear={setVolumePdfYear}
+                volumePdfTitle={volumePdfTitle}
+                setVolumePdfTitle={setVolumePdfTitle}
+                volumePdfSubtitle={volumePdfSubtitle}
+                setVolumePdfSubtitle={setVolumePdfSubtitle}
+                volumePdfFile={volumePdfFile}
+                setVolumePdfFile={setVolumePdfFile}
+                uploadingVolumePdf={uploadingVolumePdf}
+                handleUploadVolumePdf={handleUploadVolumePdf}
+                issuePdfIssueId={issuePdfIssueId}
+                setIssuePdfIssueId={setIssuePdfIssueId}
+                existingIssuePdfFile={existingIssuePdfFile}
+                setExistingIssuePdfFile={setExistingIssuePdfFile}
+                uploadingIssuePdf={uploadingIssuePdf}
+                handleUploadExistingIssuePdf={handleUploadExistingIssuePdf}
+                setShowVolumePdf={setShowVolumePdf}
+              />
+            )}
+
+            {!showNewIssue && !showVolumePdf && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Volumes Card */}
+                <div className="bg-bg-card border border-border-custom p-5 rounded-sm space-y-4 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <h4 className="font-serif font-bold text-xs text-text-heading uppercase tracking-wide border-b border-border-light pb-2 flex items-center gap-1.5">
+                      <BookOpen size={13} /> Volumes ({volumes.length})
+                    </h4>
+                    {volumes.length === 0 ? (
+                      <p className="text-xs text-text-muted font-serif">No volumes configured yet.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                        {volumes.map((v) => (
+                          <div key={v.id} className="border border-border-light p-2 bg-sand/5 rounded-sm flex items-center justify-between text-xs font-serif">
+                            <div className="min-w-0 pr-2">
+                              <p className="font-bold text-text-heading truncate">Volume {v.volume} ({v.year})</p>
+                              <p className="text-[10px] text-text-muted truncate mt-0.5">{v.title}</p>
+                            </div>
+                            {v.pdf_url ? (
+                              <a href={v.pdf_url} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
+                            ) : (
+                              <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowVolumePdf(true)}
+                    className="w-full bg-sand/10 hover:bg-sand/30 text-olive border border-border-custom font-sans font-bold text-[10px] py-2 rounded-sm uppercase tracking-wider transition-colors cursor-pointer mt-4"
+                  >
+                    Open Volume Manager
+                  </button>
+                </div>
+
+                {/* Issues Card */}
+                <div className="bg-bg-card border border-border-custom p-5 rounded-sm space-y-4 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <h4 className="font-serif font-bold text-xs text-text-heading uppercase tracking-wide border-b border-border-light pb-2 flex items-center gap-1.5">
+                      <FileText size={13} /> Issues ({issues.length})
+                    </h4>
+                    {issues.length === 0 ? (
+                      <p className="text-xs text-text-muted font-serif">No issues created yet.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                        {issues.map((iss) => (
+                          <div key={iss.id} className="border border-border-light p-2 bg-sand/5 rounded-sm flex items-center justify-between text-xs font-serif">
+                            <div className="min-w-0 pr-2">
+                              <p className="font-bold text-text-heading truncate">{iss.title}</p>
+                              <p className="text-[10px] text-text-muted mt-0.5">Vol. {iss.volume}, No. {iss.number}</p>
+                            </div>
+                            {iss.issue_pdf_url ? (
+                              <a href={iss.issue_pdf_url} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
+                            ) : (
+                              <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowNewIssue(true)}
+                    className="w-full bg-olive text-white hover:bg-link-hover font-sans font-bold text-[10px] py-2 rounded-sm uppercase tracking-wider transition-colors cursor-pointer mt-4"
+                  >
+                    Create New Issue
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {editorView === 'invites' && (

@@ -1,9 +1,28 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import { put } from '@vercel/blob';
+import { decryptSession } from '@/lib/session';
+
+async function getSession() {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session_token');
+    if (!sessionCookie) return null;
+    return decryptSession(sessionCookie.value);
+  } catch (e) {
+    console.error('Error fetching session:', e);
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
     const email = searchParams.get('email');
@@ -12,22 +31,34 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Role query parameter is required' }, { status: 400 });
     }
 
+    // Admin / Editor checks
     if (role === 'admin' || role === 'editor') {
+      if (session.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       const result = await db`SELECT * FROM submissions ORDER BY id DESC`;
       return NextResponse.json(result.rows);
     }
 
+    // Author checks
     if (role === 'author') {
       if (!email) {
         return NextResponse.json({ error: 'Email query parameter is required for author' }, { status: 400 });
+      }
+      if (session.role !== 'author' || session.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`SELECT * FROM submissions WHERE author_email = ${email} ORDER BY id DESC`;
       return NextResponse.json(result.rows);
     }
 
+    // Reviewer checks
     if (role === 'reviewer') {
       if (!email) {
         return NextResponse.json({ error: 'Email query parameter is required for reviewer' }, { status: 400 });
+      }
+      if (session.role !== 'reviewer' || session.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`
         SELECT 
@@ -49,12 +80,20 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only authors can create/submit manuscripts
+    if (session.role !== 'author') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const contentType = request.headers.get('content-type') || '';
     let title = '';
     let abstract = '';
     let keywords = '';
-    let authorName = '';
-    let authorEmail = '';
     let filePath = '';
 
     if (contentType.includes('multipart/form-data')) {
@@ -62,8 +101,6 @@ export async function POST(request: Request) {
       title = formData.get('title') as string;
       abstract = formData.get('abstract') as string;
       keywords = formData.get('keywords') as string;
-      authorName = formData.get('author_name') as string;
-      authorEmail = formData.get('author_email') as string;
 
       const file = formData.get('file') as File | null;
       if (!file) {
@@ -81,15 +118,15 @@ export async function POST(request: Request) {
       title = body.title;
       abstract = body.abstract;
       keywords = body.keywords;
-      authorName = body.author_name;
-      authorEmail = body.author_email;
       filePath = body.file_path;
     }
 
-    if (!title || !abstract || !keywords || !authorName || !authorEmail || !filePath) {
+    if (!title || !abstract || !keywords || !filePath) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
 
+    const authorName = session.name;
+    const authorEmail = session.email;
     const currentDate = new Date().toISOString().split('T')[0];
 
     const result = await db`
@@ -107,6 +144,16 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only editors (admin) can update submissions/upload revisions
+    if (session.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const contentType = request.headers.get('content-type') || '';
     if (!contentType.includes('multipart/form-data')) {
       return NextResponse.json({ error: 'Content-Type must be multipart/form-data' }, { status: 400 });
@@ -135,6 +182,10 @@ export async function PUT(request: Request) {
       WHERE id = ${Number(submissionId)}
       RETURNING *
     `;
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+    }
 
     const updatedSubmission = result.rows[0];
     return NextResponse.json(updatedSubmission);

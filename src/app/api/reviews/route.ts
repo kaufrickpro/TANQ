@@ -1,8 +1,27 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import db from '@/lib/db';
+import { decryptSession } from '@/lib/session';
+
+async function getSession() {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session_token');
+    if (!sessionCookie) return null;
+    return decryptSession(sessionCookie.value);
+  } catch (e) {
+    console.error('Error fetching session:', e);
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const submissionId = searchParams.get('submission_id');
 
@@ -10,7 +29,32 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Submission ID is required' }, { status: 400 });
     }
 
-    const result = await db`SELECT * FROM reviews WHERE submission_id = ${submissionId}`;
+    const submissionIdNumber = Number(submissionId);
+    if (!Number.isFinite(submissionIdNumber)) {
+      return NextResponse.json({ error: 'Submission ID must be a valid number' }, { status: 400 });
+    }
+
+    // Access control: editors can view all reviews; reviewers can only view if assigned to this paper
+    if (session.role === 'admin') {
+      const result = await db`SELECT * FROM reviews WHERE submission_id = ${submissionIdNumber}`;
+      return NextResponse.json(result.rows);
+    }
+
+    if (session.role !== 'reviewer') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const result = await db`
+      SELECT *
+      FROM reviews
+      WHERE submission_id = ${submissionIdNumber}
+        AND TRIM(LOWER(reviewer_email)) = TRIM(LOWER(${session.email}))
+    `;
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     return NextResponse.json(result.rows);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
@@ -19,10 +63,20 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { action } = body;
 
     if (action === 'assign') {
+      // Only admins (editors) can assign reviewers
+      if (session.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
       const { submission_id, reviewer_name, reviewer_email } = body;
 
       if (!submission_id || !reviewer_name || !reviewer_email) {
@@ -44,10 +98,35 @@ export async function POST(request: Request) {
     }
 
     if (action === 'submit') {
+      // Only reviewers can evaluate manuscripts
+      if (session.role !== 'reviewer') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
       const { review_id, submission_id, reviewer_email, comments, recommendation, score } = body;
 
       if (!comments || !recommendation || score === undefined) {
         return NextResponse.json({ error: 'Comments, recommendation, and score are required' }, { status: 400 });
+      }
+
+      const sessionEmail = session.email.trim().toLowerCase();
+
+      // Verify ownership of the review being updated
+      if (review_id) {
+        const revCheck = await db`SELECT reviewer_email FROM reviews WHERE id = ${Number(review_id)}`;
+        if (revCheck.rows.length === 0) {
+          return NextResponse.json({ error: 'Review not found' }, { status: 404 });
+        }
+        if (revCheck.rows[0].reviewer_email.trim().toLowerCase() !== sessionEmail) {
+          return NextResponse.json({ error: 'Forbidden. You are not assigned to this review.' }, { status: 403 });
+        }
+      } else {
+        if (!submission_id || !reviewer_email) {
+          return NextResponse.json({ error: 'Submission ID and Reviewer Email are required when Review ID is not provided' }, { status: 400 });
+        }
+        if (reviewer_email.trim().toLowerCase() !== sessionEmail) {
+          return NextResponse.json({ error: 'Forbidden. Reviewer email mismatch.' }, { status: 403 });
+        }
       }
 
       const currentDate = new Date().toISOString().split('T')[0];
@@ -74,10 +153,6 @@ export async function POST(request: Request) {
           }
         }
       } else {
-        if (!submission_id || !reviewer_email) {
-          return NextResponse.json({ error: 'Submission ID and Reviewer Email are required when Review ID is not provided' }, { status: 400 });
-        }
-
         const result = await db`
           UPDATE reviews
           SET comments = ${comments}, recommendation = ${recommendation}, score = ${score}, date_reviewed = ${currentDate}

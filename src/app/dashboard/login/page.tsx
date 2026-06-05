@@ -62,53 +62,89 @@ export default function LoginPage() {
       }
     }
 
-    // Parse invite token from search params or hash
-    const getInviteToken = () => {
-      const searchParams = new URLSearchParams(window.location.search);
-      let token = searchParams.get('invite');
-      if (token) return token;
+    const checkHashAndInvite = () => {
+      // Parse invite token from search params or hash
+      const getInviteToken = () => {
+        const searchParams = new URLSearchParams(window.location.search);
+        let token = searchParams.get('invite');
+        if (token) return token;
 
-      const hash = window.location.hash;
-      if (hash.includes('invite=')) {
-        const match = hash.match(/invite=([^&?]+)/);
-        if (match) return match[1];
+        const hash = window.location.hash;
+        if (hash.includes('invite=')) {
+          const match = hash.match(/invite=([^&?]+)/);
+          if (match) return match[1];
+        }
+        return null;
+      };
+
+      const token = getInviteToken();
+      if (token) {
+        setMode('register');
+        setInviteToken(token);
+        setInviteLoading(true);
+        setError('');
+
+        fetch(`/api/invitations?token=${token}`)
+          .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || 'Invalid invitation link');
+            }
+            setEmail(data.email);
+            setRole(data.role);
+            setInviteVerified(true);
+          })
+          .catch((err) => {
+            setError(err.message || 'Verification of invite link failed. You can still register as a standard Author.');
+            setRole('author');
+          })
+          .finally(() => {
+            setInviteLoading(false);
+          });
+      } else if (window.location.hash === '#register' || window.location.hash.startsWith('#register')) {
+        setMode('register');
+      } else if (window.location.hash === '#login' || window.location.hash === '') {
+        setMode('login');
       }
-      return null;
+      
+      // Force scroll to top to prevent browser from scrolling down due to the hash
+      window.scrollTo(0, 0);
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+      }, 0);
     };
 
-    const token = getInviteToken();
-    if (token) {
-      setMode('register');
-      setInviteToken(token);
-      setInviteLoading(true);
-      setError('');
+    checkHashAndInvite();
 
-      fetch(`/api/invitations?token=${token}`)
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || 'Invalid invitation link');
-          }
-          setEmail(data.email);
-          setRole(data.role);
-          setInviteVerified(true);
-        })
-        .catch((err) => {
-          setError(err.message || 'Verification of invite link failed. You can still register as a standard Author.');
-          setRole('author');
-        })
-        .finally(() => {
-          setInviteLoading(false);
-        });
-    } else if (window.location.hash === '#register' || window.location.hash.startsWith('#register')) {
-      setMode('register');
-    }
+    window.addEventListener('hashchange', checkHashAndInvite);
+    window.addEventListener('popstate', checkHashAndInvite);
+
+    // Patch history.pushState and history.replaceState to listen to SPA navigation
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args);
+      setTimeout(checkHashAndInvite, 0);
+    };
+
+    window.history.replaceState = function(...args) {
+      originalReplaceState.apply(this, args);
+      setTimeout(checkHashAndInvite, 0);
+    };
 
     const isDev = process.env.NODE_ENV === 'development';
     const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash.includes('demo');
     if (isDev || hasDemoParam) {
       setShowDemo(true);
     }
+
+    return () => {
+      window.removeEventListener('hashchange', checkHashAndInvite);
+      window.removeEventListener('popstate', checkHashAndInvite);
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+    };
   }, [router]);
 
   // Cooldown countdown timer for OTP resending
@@ -242,7 +278,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => {
-                setMode('login');
+                window.location.hash = 'login';
                 setError('');
               }}
               className={`py-2.5 transition-colors cursor-pointer text-center ${mode === 'login' ? 'bg-olive text-white' : 'bg-white text-text-muted hover:bg-sand/10'}`}
@@ -252,7 +288,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => {
-                setMode('register');
+                window.location.hash = 'register';
                 setError('');
               }}
               className={`py-2.5 transition-colors cursor-pointer text-center ${mode === 'register' ? 'bg-olive text-white' : 'bg-white text-text-muted hover:bg-sand/10'}`}
@@ -323,7 +359,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode('login');
+                  window.location.hash = 'login';
                   setError('');
                   setResendMessage('');
                   setOtp('');
@@ -406,15 +442,17 @@ export default function LoginPage() {
               )}
 
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Username</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">
+                  {mode === 'register' ? 'Username (Optional)' : 'Username or Email'}
+                </label>
                 <div className="relative">
                   <input
                     type="text"
-                    required
+                    required={mode !== 'register'}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="bg-white border border-border-custom rounded-sm w-full pl-10 pr-4 py-2.5 text-sm text-black focus:outline-none focus:border-olive shadow-sm font-serif"
-                    placeholder="Enter username"
+                    placeholder={mode === 'register' ? 'Enter username (defaults to email)' : 'Enter username or email'}
                   />
                   <User className="absolute left-3 top-3.5 text-text-muted" size={14} />
                 </div>

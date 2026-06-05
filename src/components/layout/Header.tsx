@@ -40,10 +40,19 @@ export default function Header() {
   }, [pathname]);
 
   const handleLogout = async () => {
-    document.cookie = 'session_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    setSession(null);
-    router.push('/');
-    router.refresh();
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Logout request failed');
+      }
+
+      document.cookie = 'session_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      setSession(null);
+      router.push('/');
+      router.refresh();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {

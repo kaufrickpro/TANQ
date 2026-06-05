@@ -2,20 +2,21 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import crypto from 'crypto';
+import { decryptSession } from '@/lib/session';
 
 // Helper to authenticate editor (admin) session
 async function getAdminSession() {
   try {
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session_user');
+    const sessionCookie = cookieStore.get('session_token');
     if (!sessionCookie) return null;
     
-    const user = JSON.parse(decodeURIComponent(sessionCookie.value));
+    const user = decryptSession(sessionCookie.value);
     if (user && user.role === 'admin') {
       return user;
     }
   } catch (e) {
-    console.error('Error parsing admin session:', e);
+    console.error('Error decrypting admin session:', e);
   }
   return null;
 }

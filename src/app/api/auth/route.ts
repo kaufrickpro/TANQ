@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { randomInt } from 'crypto';
 import db from '@/lib/db';
 import { hashPassword, verifyPassword, validatePasswordQuality } from '@/lib/password';
 import { sendVerificationEmail } from '@/lib/email';
+import { encryptSession } from '@/lib/session';
 
 type AuthUser = {
   id: number;
@@ -22,6 +24,14 @@ function createSessionResponse(user: AuthUser) {
     sameSite: 'lax',
   });
 
+  const token = encryptSession(user);
+  response.cookies.set('session_token', token, {
+    path: '/',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
+  });
+
   return response;
 }
 
@@ -30,8 +40,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action = 'login', username, password, name, email, role = 'author', token } = body;
 
-    if (action !== 'resend-otp' && (!username || !password)) {
-      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
+    if (action === 'login' && (!username || !password)) {
+      return NextResponse.json({ error: 'Username or email and password are required' }, { status: 400 });
+    }
+
+    if (action === 'register' && (!email || !password)) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
     if (action === 'resend-otp') {
@@ -54,7 +68,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Account is already verified' }, { status: 400 });
       }
 
-      const otpVal = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpVal = randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
       await db`
@@ -113,18 +127,21 @@ export async function POST(request: Request) {
         }
       }
 
-      // Check if username is already taken
+      const regUsername = (username?.trim() || email.trim()).trim();
+      const regEmail = email.trim().toLowerCase();
+
+      // Check if username is already taken (case-insensitive)
       const existingUserResult = await db`
-        SELECT id FROM users WHERE username = ${username}
+        SELECT id FROM users WHERE LOWER(username) = LOWER(${regUsername})
       `;
 
       if (existingUserResult.rows.length > 0) {
         return NextResponse.json({ error: 'Username is already taken' }, { status: 409 });
       }
 
-      // Check if email is already taken
+      // Check if email is already taken (case-insensitive)
       const existingEmailResult = await db`
-        SELECT id FROM users WHERE email = ${email.trim().toLowerCase()}
+        SELECT id FROM users WHERE LOWER(email) = LOWER(${regEmail})
       `;
 
       if (existingEmailResult.rows.length > 0) {
@@ -148,13 +165,13 @@ export async function POST(request: Request) {
         isVerified = true;
       } else {
         // Generate a 6-digit OTP code
-        verificationOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        verificationOtp = randomInt(100000, 999999).toString();
         otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
       }
 
       const insertResult = await db`
         INSERT INTO users (username, password_hash, name, email, role, is_verified, verification_otp, otp_expires_at)
-        VALUES (${username.trim()}, ${passwordHash}, ${name.trim()}, ${email.trim()}, ${role}, ${isVerified}, ${verificationOtp}, ${otpExpiresAt ? otpExpiresAt.toISOString() : null})
+        VALUES (${regUsername}, ${passwordHash}, ${name.trim()}, ${email.trim()}, ${role}, ${isVerified}, ${verificationOtp}, ${otpExpiresAt ? otpExpiresAt.toISOString() : null})
         RETURNING id, username, name, email, role, is_verified
       `;
 
@@ -185,11 +202,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Query user by username
+    // Query user by username or email (case-insensitive)
     const userResult = await db`
       SELECT id, username, password_hash, name, email, role, is_verified, verification_otp, otp_expires_at 
       FROM users 
-      WHERE username = ${username}
+      WHERE LOWER(username) = LOWER(${username.trim()}) OR LOWER(email) = LOWER(${username.trim()})
     `;
 
     if (userResult.rows.length === 0) {
@@ -211,7 +228,7 @@ export async function POST(request: Request) {
 
       // Resend OTP code if it is expired or missing
       if (!otpVal || !expiresAt || new Date(expiresAt) < new Date()) {
-        otpVal = Math.floor(100000 + Math.random() * 900000).toString();
+        otpVal = randomInt(100000, 999999).toString();
         expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
         await db`

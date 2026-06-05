@@ -82,14 +82,14 @@ export default function EditorialTeam() {
                 <thead className="bg-sand/30 font-bold uppercase tracking-wider text-[10px] text-text-muted">
                   <tr>
                     {section.members[0] && 'role' in section.members[0] && (
-                      <th className="px-6 py-3 text-left">
+                      <th className="px-4 sm:px-6 py-3 text-left">
                         Role / Area
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left">
+                    <th className="px-4 sm:px-6 py-3 text-left">
                       Name
                     </th>
-                    <th className="px-6 py-3 text-left">
+                    <th className="px-4 sm:px-6 py-3 text-left">
                       Institution / Country
                     </th>
                   </tr>
@@ -98,14 +98,14 @@ export default function EditorialTeam() {
                   {section.members.map((m, idx) => (
                     <tr key={idx} className={idx % 2 === 1 ? 'bg-sand/10' : ''}>
                       {'role' in m && (
-                        <td className="px-6 py-3.5 whitespace-nowrap font-bold text-[11px] uppercase tracking-wider text-text-muted">
+                        <td className="px-4 sm:px-6 py-3.5 font-bold text-[11px] uppercase tracking-wider text-text-muted">
                           {m.role}
                         </td>
                       )}
-                      <td className="px-6 py-3.5 whitespace-nowrap font-serif font-bold">
+                      <td className="px-4 sm:px-6 py-3.5 font-serif font-bold">
                         {m.name}
                       </td>
-                      <td className="px-6 py-3.5 whitespace-nowrap font-serif text-text-muted">
+                      <td className="px-4 sm:px-6 py-3.5 font-serif text-text-muted">
                         {m.institution}
                       </td>
                     </tr>

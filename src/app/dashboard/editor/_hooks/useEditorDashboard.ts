@@ -33,8 +33,8 @@ export function useEditorDashboard() {
   const [pubType, setPubType] = useState('Research Article');
   const [publishing, setPublishing] = useState(false);
 
-  // View state for Editor Dashboard ('queue' or 'invites')
-  const [editorView, setEditorView] = useState<'queue' | 'invites'>('queue');
+  // View state for Editor Dashboard ('queue', 'invites', or 'issues')
+  const [editorView, setEditorView] = useState<'queue' | 'invites' | 'issues'>('queue');
   
   // Invitation management state
   const [invites, setInvites] = useState<any[]>([]);

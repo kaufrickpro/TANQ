@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { encryptSession } from '@/lib/session';
 
 type AuthUser = {
   id: number;
@@ -17,6 +18,14 @@ function createSessionResponse(user: AuthUser) {
     path: '/',
     secure: process.env.NODE_ENV === 'production',
     httpOnly: false,
+    sameSite: 'lax',
+  });
+
+  const token = encryptSession(user);
+  response.cookies.set('session_token', token, {
+    path: '/',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
     sameSite: 'lax',
   });
 
@@ -45,18 +54,6 @@ export async function POST(request: Request) {
     }
 
     const dbUser = userResult.rows[0];
-
-    // If already verified, log them in immediately for convenience
-    if (dbUser.is_verified) {
-      const authUser: AuthUser = {
-        id: dbUser.id,
-        username: dbUser.username,
-        name: dbUser.name,
-        email: dbUser.email,
-        role: dbUser.role
-      };
-      return createSessionResponse(authUser);
-    }
 
     // Validate OTP code and expiration
     const storedOtp = dbUser.verification_otp;

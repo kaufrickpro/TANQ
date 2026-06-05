@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import { put } from '@vercel/blob';
+import { decryptSession } from '@/lib/session';
+
+async function getSession() {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('session_token');
+    if (!sessionCookie) return null;
+    return decryptSession(sessionCookie.value);
+  } catch (e) {
+    console.error('Error fetching session:', e);
+    return null;
+  }
+}
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -26,6 +40,14 @@ async function savePdfFile(file: File, folderName: 'issues' | 'volumes') {
 
 export async function GET(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     
     const issuesResult = await db`SELECT * FROM issues ORDER BY year DESC, volume DESC, number DESC`;
@@ -127,6 +149,14 @@ async function handleMultipartPost(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       return await handleMultipartPost(request);

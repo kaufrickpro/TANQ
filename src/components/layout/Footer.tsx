@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="md:col-span-6 space-y-4">
             <div className="flex items-center">
               <Image 
-                src="/images/Tnq-Logo.png" 
+                src="/images/Tnq-Logo-Footer.png" 
                 alt="TANQ Logo" 
                 width={100} 
                 height={36} 
