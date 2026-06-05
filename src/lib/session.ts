@@ -3,9 +3,13 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 
 function getSessionKey(): Buffer {
-  const secretKey = process.env.SESSION_SECRET;
+  let secretKey = process.env.SESSION_SECRET;
   if (!secretKey) {
-    throw new Error('SESSION_SECRET is required for encrypted session cookies.');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET is required for encrypted session cookies in production.');
+    }
+    console.warn('Warning: SESSION_SECRET is not set. Using a temporary fallback key for development.');
+    secretKey = 'development_default_session_secret_key_placeholder';
   }
   // Ensure key is exactly 32 bytes
   return Buffer.concat([Buffer.from(secretKey), Buffer.alloc(32)], 32);
