@@ -16,17 +16,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [showDemo, setShowDemo] = useState(false);
 
-  useEffect(() => {
-    if (window.location.hash === '#register') {
-      setMode('register');
-    }
-    const isDev = process.env.NODE_ENV === 'development';
-    const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash === '#demo';
-    if (isDev || hasDemoParam) {
-      setShowDemo(true);
-    }
-  }, []);
-
   const redirectToDashboard = (userRole: string) => {
     if (userRole === 'admin') {
       router.push('/dashboard/editor');
@@ -37,6 +26,33 @@ export default function LoginPage() {
     }
     router.refresh();
   };
+
+  useEffect(() => {
+    // Check if session cookie is already present
+    const cookies = document.cookie.split(';');
+    const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
+    if (sessionCookie) {
+      try {
+        const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
+        const user = JSON.parse(decoded);
+        if (user && user.role) {
+          redirectToDashboard(user.role);
+          return;
+        }
+      } catch (e) {
+        // ignore parsing error
+      }
+    }
+
+    if (window.location.hash === '#register') {
+      setMode('register');
+    }
+    const isDev = process.env.NODE_ENV === 'development';
+    const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash === '#demo';
+    if (isDev || hasDemoParam) {
+      setShowDemo(true);
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
