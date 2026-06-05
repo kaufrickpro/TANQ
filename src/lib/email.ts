@@ -102,10 +102,10 @@ export async function sendVerificationEmail(email: string, name: string, otp: st
     </html>
   `;
 
-  if (!apiKey) {
-    // Falls back to terminal console logs in development
+  // Always log the OTP to the console in development to make debugging / testing easy
+  if (process.env.NODE_ENV !== 'production') {
     console.log('\n' + '='.repeat(60));
-    console.log('📬  [DEVELOPMENT EMAIL MOCK]');
+    console.log('📬  [DEVELOPMENT EMAIL OTP LOG]');
     console.log(`TO:      ${name} <${email}>`);
     console.log(`FROM:    ${fromEmail}`);
     console.log(`SUBJECT: ${subject}`);
@@ -113,6 +113,9 @@ export async function sendVerificationEmail(email: string, name: string, otp: st
     console.log(`VERIFICATION CODE (OTP):  [ ${otp} ]`);
     console.log('-'.repeat(60));
     console.log('='.repeat(60) + '\n');
+  }
+
+  if (!apiKey) {
     return;
   }
 
