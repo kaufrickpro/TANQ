@@ -1,14 +1,15 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-const SECRET_KEY = process.env.SESSION_SECRET;
 
-if (!SECRET_KEY) {
-  throw new Error('SESSION_SECRET is required for encrypted session cookies.');
+function getSessionKey(): Buffer {
+  const secretKey = process.env.SESSION_SECRET;
+  if (!secretKey) {
+    throw new Error('SESSION_SECRET is required for encrypted session cookies.');
+  }
+  // Ensure key is exactly 32 bytes
+  return Buffer.concat([Buffer.from(secretKey), Buffer.alloc(32)], 32);
 }
-
-// Ensure key is exactly 32 bytes
-const KEY = Buffer.concat([Buffer.from(SECRET_KEY), Buffer.alloc(32)], 32);
 
 export interface SessionPayload {
   id: number;
@@ -23,7 +24,8 @@ export interface SessionPayload {
  */
 export function encryptSession(payload: SessionPayload): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGORITHM, KEY, iv);
+  const key = getSessionKey();
+  const cipher = createCipheriv(ALGORITHM, key, iv);
   
   let encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -48,7 +50,8 @@ export function decryptSession(token: string): SessionPayload | null {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
     
-    const decipher = createDecipheriv(ALGORITHM, KEY, iv);
+    const key = getSessionKey();
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
     
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
