@@ -185,11 +185,11 @@ export async function recordOtpResend(email: string, ip: string): Promise<void> 
 
 /**
  * Checks Registration rate limit.
- * Registration: maximum 5 attempts per IP per hour.
+ * Registration: maximum 15 attempts per IP per hour.
  */
 export async function checkRegistrationRateLimit(ip: string): Promise<{ success: boolean; error?: string }> {
   const regAttempts = await getCount(`registration_attempts:ip:${ip}`, 3600000);
-  if (regAttempts >= 5) {
+  if (regAttempts >= 15) {
     return { success: false, error: 'Too many registration attempts from this IP. Please try again in an hour.' };
   }
 
