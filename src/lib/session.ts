@@ -1,21 +1,8 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { cookies } from 'next/headers';
+import db from '@/lib/db';
+import crypto from 'crypto';
 
-const ALGORITHM = 'aes-256-gcm';
-
-function getSessionKey(): Buffer {
-  let secretKey = process.env.SESSION_SECRET;
-  if (!secretKey) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('SESSION_SECRET is required for encrypted session cookies in production.');
-    }
-    console.warn('Warning: SESSION_SECRET is not set. Using a temporary fallback key for development.');
-    secretKey = 'development_default_session_secret_key_placeholder';
-  }
-  // Ensure key is exactly 32 bytes
-  return Buffer.concat([Buffer.from(secretKey), Buffer.alloc(32)], 32);
-}
-
-export interface SessionPayload {
+export interface AuthUser {
   id: number;
   username: string;
   name: string;
@@ -24,45 +11,93 @@ export interface SessionPayload {
 }
 
 /**
- * Encrypts a session payload into a secure token string.
+ * Creates a new session in the database, generating a 256-bit opaque token
+ * and returning it.
  */
-export function encryptSession(payload: SessionPayload): string {
-  const iv = randomBytes(12);
-  const key = getSessionKey();
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+export async function createSession(userId: number): Promise<string> {
+  const rawToken = crypto.randomBytes(32).toString('hex'); // 256-bit
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days initial
   
-  let encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  await db`
+    INSERT INTO auth_sessions (token_hash, user_id, expires_at)
+    VALUES (${tokenHash}, ${userId}, ${expiresAt.toISOString()})
+  `;
   
-  const authTag = cipher.getAuthTag().toString('hex');
-  
-  // Format: iv_hex:auth_tag_hex:encrypted_hex
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  return rawToken;
 }
 
 /**
- * Decrypts a secure token string back into a session payload.
- * Returns null if the token is invalid or tampered with.
+ * Loads the current session user from the database.
+ * Rejects disabled, revoked, or expired sessions.
+ * Refreshes session expiry at most once every 24 hours.
  */
-export function decryptSession(token: string): SessionPayload | null {
+export async function getSessionUser(): Promise<AuthUser | null> {
   try {
-    if (!token) return null;
-    const parts = token.split(':');
-    if (parts.length !== 3) return null;
+    const cookieStore = await cookies();
+    const tokenCookie = cookieStore.get('session_token');
+    if (!tokenCookie) return null;
+
+    const tokenHash = crypto.createHash('sha256').update(tokenCookie.value).digest('hex');
+    const sessionResult = await db`
+      SELECT s.id as session_id, s.expires_at, s.revoked_at, s.last_activity,
+             u.id, u.username, u.name, u.email, u.role, u.is_disabled
+      FROM auth_sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.token_hash = ${tokenHash}
+    `;
+
+    if (sessionResult.rows.length === 0) return null;
+
+    const session = sessionResult.rows[0];
+
+    // Reject disabled, revoked, or expired sessions
+    if (session.is_disabled || session.revoked_at || new Date(session.expires_at) < new Date()) {
+      return null;
+    }
+
+    // Refresh active session expiry at most once every 24 hours
+    const now = new Date();
+    const lastActivity = new Date(session.last_activity);
+    const oneDayMs = 24 * 60 * 60 * 1000;
     
-    const [ivHex, authTagHex, encryptedHex] = parts;
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    
-    const key = getSessionKey();
-    const decipher = createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return JSON.parse(decrypted) as SessionPayload;
-  } catch {
+    if (now.getTime() - lastActivity.getTime() > oneDayMs) {
+      const newExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      await db`
+        UPDATE auth_sessions
+        SET expires_at = ${newExpiresAt.toISOString()}, last_activity = ${now.toISOString()}
+        WHERE id = ${session.session_id}
+      `;
+    } else {
+      // update last activity
+      await db`
+        UPDATE auth_sessions
+        SET last_activity = ${now.toISOString()}
+        WHERE id = ${session.session_id}
+      `;
+    }
+
+    return {
+      id: session.id,
+      username: session.username,
+      name: session.name,
+      email: session.email,
+      role: session.role
+    };
+  } catch (e) {
+    console.error('Error fetching session user:', e);
     return null;
   }
+}
+
+/**
+ * Revokes the session in the database.
+ */
+export async function revokeSession(token: string): Promise<void> {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  await db`
+    UPDATE auth_sessions
+    SET revoked_at = CURRENT_TIMESTAMP
+    WHERE token_hash = ${tokenHash}
+  `;
 }

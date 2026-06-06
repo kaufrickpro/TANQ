@@ -1,23 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import db from '@/lib/db';
-import { decryptSession } from '@/lib/session';
-
-async function getSession() {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session_token');
-    if (!sessionCookie) return null;
-    return decryptSession(sessionCookie.value);
-  } catch (e) {
-    console.error('Error fetching session:', e);
-    return null;
-  }
-}
+import { getSessionUser } from '@/lib/session';
+import { validateSameOrigin } from '@/lib/sameOrigin';
 
 export async function GET(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -63,7 +51,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
+    // CSRF Check
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

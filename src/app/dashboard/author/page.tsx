@@ -11,7 +11,8 @@ interface Submission {
   keywords: string;
   author_name: string;
   author_email: string;
-  file_path: string;
+  download_url: string;
+  file_name: string;
   status: string;
   date_submitted: string;
 }
@@ -38,26 +39,24 @@ export default function AuthorDashboard() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  // Validate session
+  // Validate session and load user info
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
-    if (!sessionCookie) {
-      router.push('/dashboard/login');
-      return;
-    }
-
-    try {
-      const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
-      const sessionUser = JSON.parse(decoded);
-      if (sessionUser.role !== 'author') {
+    fetch('/api/auth/session')
+      .then(async (res) => {
+        if (!res.ok) {
+          router.push('/dashboard/login');
+          return;
+        }
+        const sessionUser = await res.json();
+        if (sessionUser.role !== 'author') {
+          router.push('/dashboard/login');
+          return;
+        }
+        setSession(sessionUser);
+      })
+      .catch(() => {
         router.push('/dashboard/login');
-        return;
-      }
-      setSession(sessionUser);
-    } catch {
-      router.push('/dashboard/login');
-    }
+      });
   }, [router]);
 
   const fetchSubmissions = useCallback(async (email: string) => {
@@ -179,7 +178,7 @@ export default function AuthorDashboard() {
                   <span>Submitted: <span className="normal-case font-normal text-text-primary">{sub.date_submitted}</span></span>
                   <span>|</span>
                   <span>
-                    File: <a href={sub.file_path} download className="text-link hover:text-link-hover hover:underline normal-case font-normal font-mono">{sub.file_path.split('/').pop()}</a>
+                    File: <a href={sub.download_url} download className="text-link hover:text-link-hover hover:underline normal-case font-normal font-mono">{sub.file_name}</a>
                   </span>
                 </div>
                 <p className="text-sm text-text-primary/80 line-clamp-2 leading-relaxed font-serif pt-1">{sub.abstract}</p>

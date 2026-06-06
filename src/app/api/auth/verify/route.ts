@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import db from '@/lib/db';
-import { encryptSession } from '@/lib/session';
+import { createSession } from '@/lib/session';
+import { validateSameOrigin } from '@/lib/sameOrigin';
+import { getClientIp, checkOtpVerificationRateLimit, recordOtpFailure } from '@/lib/rateLimit';
 
 type AuthUser = {
   id: number;
@@ -10,18 +13,10 @@ type AuthUser = {
   role: string;
 };
 
-function createSessionResponse(user: AuthUser) {
+async function createSessionResponse(user: AuthUser) {
+  const token = await createSession(user.id);
   const response = NextResponse.json(user);
-  const sessionStr = JSON.stringify(user);
 
-  response.cookies.set('session_user', sessionStr, {
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: false,
-    sameSite: 'lax',
-  });
-
-  const token = encryptSession(user);
   response.cookies.set('session_token', token, {
     path: '/',
     secure: process.env.NODE_ENV === 'production',
@@ -34,6 +29,12 @@ function createSessionResponse(user: AuthUser) {
 
 export async function POST(request: Request) {
   try {
+    // 1. Same-Origin Validation
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed. Insecure origin.' }, { status: 403 });
+    }
+
+    const ip = getClientIp(request);
     const { email, otp } = await request.json();
 
     if (!email || !otp) {
@@ -42,9 +43,15 @@ export async function POST(request: Request) {
 
     const formattedEmail = email.trim().toLowerCase();
 
+    // 2. OTP Verification Rate Limit Check
+    const rateLimit = await checkOtpVerificationRateLimit(formattedEmail, ip);
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: rateLimit.error }, { status: 429 });
+    }
+
     // Retrieve the user from the database
     const userResult = await db`
-      SELECT id, username, name, email, role, is_verified, verification_otp, otp_expires_at 
+      SELECT id, username, name, email, role, is_verified, is_disabled, verification_otp, otp_expires_at 
       FROM users 
       WHERE email = ${formattedEmail}
     `;
@@ -55,11 +62,19 @@ export async function POST(request: Request) {
 
     const dbUser = userResult.rows[0];
 
+    // Reject if disabled
+    if (dbUser.is_disabled) {
+      return NextResponse.json({ error: 'Account is disabled. Please contact support.' }, { status: 403 });
+    }
+
     // Validate OTP code and expiration
     const storedOtp = dbUser.verification_otp;
     const expiresAt = dbUser.otp_expires_at;
 
-    if (!storedOtp || storedOtp !== otp.trim()) {
+    const inputHashedOtp = createHash('sha256').update(otp.trim()).digest('hex');
+
+    if (!storedOtp || storedOtp !== inputHashedOtp) {
+      await recordOtpFailure(formattedEmail, ip);
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 
@@ -84,8 +99,9 @@ export async function POST(request: Request) {
       role: dbUser.role
     };
 
-    return createSessionResponse(authUser);
+    return await createSessionResponse(authUser);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Detailed verification error:', error);
+    return NextResponse.json({ error: 'An unexpected error occurred. Please try again later.' }, { status: 500 });
   }
 }

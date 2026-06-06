@@ -32,6 +32,7 @@ export function useEditorDashboard() {
   const [pubPages, setPubPages] = useState('');
   const [pubType, setPubType] = useState('Research Article');
   const [publishing, setPublishing] = useState(false);
+  const [pubPdfFile, setPubPdfFile] = useState<File | null>(null);
 
   // View state for Editor Dashboard ('queue', 'invites', or 'issues')
   const [editorView, setEditorView] = useState<'queue' | 'invites' | 'issues'>('queue');
@@ -42,6 +43,7 @@ export function useEditorDashboard() {
   const [inviteRole, setInviteRole] = useState<'reviewer' | 'admin'>('reviewer');
   const [invitingUser, setInvitingUser] = useState(false);
   const [loadingInvites, setLoadingInvites] = useState(false);
+  const [newlyCreatedInviteUrl, setNewlyCreatedInviteUrl] = useState<string | null>(null);
 
   // New issue form state
   const [showNewIssue, setShowNewIssue] = useState(false);
@@ -72,9 +74,11 @@ export function useEditorDashboard() {
 
   useEffect(() => {
     const isDev = process.env.NODE_ENV === 'development';
-    const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash === '#demo';
-    if (isDev || hasDemoParam) {
-      setShowDemo(true);
+    if (isDev) {
+      const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash === '#demo';
+      if (hasDemoParam) {
+        setShowDemo(true);
+      }
     }
   }, []);
 
@@ -82,26 +86,24 @@ export function useEditorDashboard() {
   const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [uploadingRevision, setUploadingRevision] = useState(false);
 
-  // Validate session
+  // Validate session and load user info
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
-    if (!sessionCookie) {
-      router.push('/dashboard/login');
-      return;
-    }
-
-    try {
-      const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
-      const sessionUser = JSON.parse(decoded);
-      if (sessionUser.role !== 'admin') {
+    fetch('/api/auth/session')
+      .then(async (res) => {
+        if (!res.ok) {
+          router.push('/dashboard/login');
+          return;
+        }
+        const sessionUser = await res.json();
+        if (sessionUser.role !== 'admin') {
+          router.push('/dashboard/login');
+          return;
+        }
+        setSession(sessionUser);
+      })
+      .catch(() => {
         router.push('/dashboard/login');
-        return;
-      }
-      setSession(sessionUser);
-    } catch {
-      router.push('/dashboard/login');
-    }
+      });
   }, [router]);
 
   const fetchData = useCallback(async () => {
@@ -196,6 +198,7 @@ export function useEditorDashboard() {
     setInvitingUser(true);
     setError('');
     setSuccess('');
+    setNewlyCreatedInviteUrl(null);
 
     try {
       const res = await fetch('/api/invitations', {
@@ -213,7 +216,18 @@ export function useEditorDashboard() {
         throw new Error(data.error || 'Failed to generate invitation');
       }
 
-      setSuccess(`Invitation link generated for ${inviteEmail}!`);
+      const data = await res.json();
+      const rawToken = data.invitation.token;
+      const url = `${window.location.origin}/dashboard/login#register?invite=${rawToken}`;
+      setNewlyCreatedInviteUrl(url);
+
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        setSuccess(`Invitation link generated and copied to clipboard for ${inviteEmail}!`);
+      } else {
+        setSuccess(`Invitation link generated for ${inviteEmail}!`);
+      }
+
       setInviteEmail('');
       fetchInvites();
     } catch (err: any) {
@@ -313,31 +327,37 @@ export function useEditorDashboard() {
 
   const handlePublishArticle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSub || !pubIssueId) return;
+    if (!selectedSub || !pubIssueId || !pubPdfFile) {
+      setError('Please select the final PDF file to publish this article.');
+      return;
+    }
     setPublishing(true);
     setError('');
     setSuccess('');
 
     try {
+      const formData = new FormData();
+      formData.append('action', 'publish_article');
+      formData.append('submission_id', String(selectedSub.id));
+      formData.append('issue_id', String(pubIssueId));
+      formData.append('doi', pubDoi);
+      formData.append('pages', pubPages);
+      formData.append('type', pubType);
+      formData.append('file', pubPdfFile);
+
       const res = await fetch('/api/publish', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'publish_article',
-          submission_id: selectedSub.id,
-          issue_id: Number(pubIssueId),
-          doi: pubDoi,
-          pages: pubPages,
-          type: pubType
-        })
+        body: formData
       });
 
       if (!res.ok) {
-        throw new Error('Failed to publish article');
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to publish article');
       }
 
       setSuccess(`Article scheduled and published successfully under selected issue! It is now live in the journal directory.`);
       setSelectedSub(null);
+      setPubPdfFile(null);
       fetchData();
     } catch (e: any) {
       setError(e.message || 'Error publishing article');
@@ -556,6 +576,8 @@ export function useEditorDashboard() {
     revisionFile,
     setRevisionFile,
     uploadingRevision,
+    pubPdfFile,
+    setPubPdfFile,
     fetchData,
     fetchInvites,
     handleUploadRevision,
@@ -567,6 +589,7 @@ export function useEditorDashboard() {
     handleCreateIssue,
     handleUploadVolumePdf,
     handleUploadExistingIssuePdf,
-    getStatusColor
+    getStatusColor,
+    newlyCreatedInviteUrl
   };
 }

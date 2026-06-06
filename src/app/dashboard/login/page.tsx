@@ -46,21 +46,21 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    // Check if session cookie is already present
-    const cookies = document.cookie.split(';');
-    const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
-    if (sessionCookie) {
+    // Check if active session is already present
+    const checkActiveSession = async () => {
       try {
-        const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
-        const user = JSON.parse(decoded);
-        if (user && user.role) {
-          redirectToDashboard(user.role);
-          return;
+        const res = await fetch('/api/auth/session');
+        if (res.ok) {
+          const user = await res.json();
+          if (user && user.role) {
+            redirectToDashboard(user.role);
+          }
         }
       } catch (e) {
-        // ignore parsing error
+        // ignore
       }
-    }
+    };
+    checkActiveSession();
 
     const checkHashAndInvite = () => {
       // Parse invite token from search params or hash
@@ -134,9 +134,11 @@ export default function LoginPage() {
     };
 
     const isDev = process.env.NODE_ENV === 'development';
-    const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash.includes('demo');
-    if (isDev || hasDemoParam) {
-      setShowDemo(true);
+    if (isDev) {
+      const hasDemoParam = new URLSearchParams(window.location.search).get('demo') === 'true' || window.location.hash.includes('demo');
+      if (hasDemoParam) {
+        setShowDemo(true);
+      }
     }
 
     return () => {

@@ -1,38 +1,28 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import { put } from '@vercel/blob';
-import { decryptSession } from '@/lib/session';
+import { getSessionUser } from '@/lib/session';
+import { validateSameOrigin } from '@/lib/sameOrigin';
 
-async function getSession() {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session_token');
-    if (!sessionCookie) return null;
-    return decryptSession(sessionCookie.value);
-  } catch (e) {
-    console.error('Error fetching session:', e);
-    return null;
-  }
-}
-
-function getString(formData: FormData, key: string) {
+function getString(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function getNumber(formData: FormData, key: string) {
-  const value = Number(getString(formData, key));
+function getNumber(formData: FormData, key: string): number | undefined {
+  const str = getString(formData, key);
+  if (!str) return undefined;
+  const value = Number(str);
   return Number.isFinite(value) ? value : undefined;
 }
 
-async function savePdfFile(file: File, folderName: 'issues' | 'volumes') {
-  if (file.type && file.type !== 'application/pdf') {
+async function savePdfFile(file: File, folderName: 'issues' | 'volumes' | 'articles') {
+  if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
     throw new Error('Only PDF files are supported');
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const blobName = `${Date.now()}_${safeName}`;
+  const blobName = `${folderName}/${Date.now()}_${safeName}`;
   const blob = await put(blobName, file, { access: 'public' });
 
   return blob.url;
@@ -40,7 +30,7 @@ async function savePdfFile(file: File, folderName: 'issues' | 'volumes') {
 
 export async function GET(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -144,12 +134,74 @@ async function handleMultipartPost(request: Request) {
     return NextResponse.json({ success: true, issue: updatedIssue });
   }
 
+  if (action === 'publish_article') {
+    const submissionId = getNumber(formData, 'submission_id');
+    const issueId = getNumber(formData, 'issue_id');
+    const doi = getString(formData, 'doi');
+    const pages = getString(formData, 'pages');
+    const type = getString(formData, 'type') || 'Research Article';
+    const file = formData.get('file') as File | null;
+
+    // Custom overrides
+    const title = getString(formData, 'title');
+    const authors = getString(formData, 'authors');
+    const abstract = getString(formData, 'abstract');
+    const keywords = getString(formData, 'keywords');
+
+    if (!submissionId || !issueId) {
+      return NextResponse.json({ error: 'Submission ID and Issue ID are required' }, { status: 400 });
+    }
+
+    if (!file) {
+      return NextResponse.json({ error: 'A final article PDF file is required to publish.' }, { status: 400 });
+    }
+
+    // Validate and save the final PDF file (must be public)
+    let pdfUrl = '';
+    try {
+      pdfUrl = await savePdfFile(file, 'articles');
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message || 'File upload failed. Make sure it is a PDF.' }, { status: 400 });
+    }
+
+    const submissionResult = await db`SELECT * FROM submissions WHERE id = ${submissionId}`;
+    const submission = submissionResult.rows[0];
+
+    if (!submission) {
+      return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+    }
+
+    const finalTitle = title || submission.title;
+    const finalAuthors = authors || submission.author_name;
+    const finalAbstract = abstract || submission.abstract;
+    const finalKeywords = keywords || submission.keywords;
+    const finalDoi = doi || '';
+    const finalPages = pages || '';
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    const insertArticleResult = await db`
+      INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published)
+      VALUES (${issueId}, ${finalTitle}, ${finalAuthors}, ${finalAbstract}, ${finalKeywords}, ${finalDoi}, ${finalPages}, ${pdfUrl}, ${type}, ${currentDate})
+      RETURNING *
+    `;
+
+    await db`UPDATE submissions SET status = 'published' WHERE id = ${submissionId}`;
+
+    const newArticle = insertArticleResult.rows[0];
+    return NextResponse.json({ success: true, article: newArticle });
+  }
+
   return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
+    // CSRF Check
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -165,23 +217,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action } = body;
 
-    if (action === 'create_issue') {
-      const { volume, number, year, month, title, issue_pdf_url } = body;
-
-      if (volume === undefined || number === undefined || year === undefined || !month || !title) {
-        return NextResponse.json({ error: 'Missing required fields for creating an issue' }, { status: 400 });
-      }
-
-      const result = await db`
-        INSERT INTO issues (volume, number, year, month, title, issue_pdf_url, is_published)
-        VALUES (${volume}, ${number}, ${year}, ${month}, ${title}, ${issue_pdf_url || null}, 0)
-        RETURNING *
-      `;
-      const newIssue = result.rows[0];
-
-      return NextResponse.json(newIssue);
-    }
-
+    // JSON fallback actions
     if (action === 'publish_issue') {
       const { issue_id } = body;
 
@@ -205,54 +241,14 @@ export async function POST(request: Request) {
     }
 
     if (action === 'publish_article') {
-      const { submission_id, issue_id, doi, pages, pdf_url, type, title, authors, abstract, keywords } = body;
-
-      if (!submission_id || !issue_id) {
-        return NextResponse.json({ error: 'Submission ID and Issue ID are required' }, { status: 400 });
-      }
-
-      const submissionResult = await db`SELECT * FROM submissions WHERE id = ${submission_id}`;
-      const submission = submissionResult.rows[0] as {
-        id: number;
-        title: string;
-        abstract: string;
-        keywords: string;
-        author_name: string;
-        author_email: string;
-        file_path: string;
-        status: string;
-        date_submitted: string;
-      } | undefined;
-
-      if (!submission) {
-        return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
-      }
-
-      const finalTitle = title || submission.title;
-      const finalAuthors = authors || submission.author_name;
-      const finalAbstract = abstract || submission.abstract;
-      const finalKeywords = keywords || submission.keywords;
-      const finalPdfUrl = pdf_url || submission.file_path;
-      const finalDoi = doi || '';
-      const finalPages = pages || '';
-      const finalType = type || 'Research Article';
-      const currentDate = new Date().toISOString().split('T')[0];
-
-      const insertArticleResult = await db`
-        INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published)
-        VALUES (${issue_id}, ${finalTitle}, ${finalAuthors}, ${finalAbstract}, ${finalKeywords}, ${finalDoi}, ${finalPages}, ${finalPdfUrl}, ${finalType}, ${currentDate})
-        RETURNING *
-      `;
-
-      await db`UPDATE submissions SET status = 'published' WHERE id = ${submission_id}`;
-
-      const newArticle = insertArticleResult.rows[0];
-
-      return NextResponse.json({ success: true, article: newArticle });
+      return NextResponse.json({ 
+        error: 'Article publishing has changed to multipart form data requiring a final PDF upload.' 
+      }, { status: 400 });
     }
 
     return NextResponse.json({ error: 'Invalid action specified' }, { status: 400 });
   } catch (error: any) {
+    console.error('Error in publish POST:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

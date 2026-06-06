@@ -1,25 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import crypto from 'crypto';
-import { decryptSession } from '@/lib/session';
-
-// Helper to authenticate editor (admin) session
-async function getAdminSession() {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session_token');
-    if (!sessionCookie) return null;
-    
-    const user = decryptSession(sessionCookie.value);
-    if (user && user.role === 'admin') {
-      return user;
-    }
-  } catch (e) {
-    console.error('Error decrypting admin session:', e);
-  }
-  return null;
-}
+import { getSessionUser } from '@/lib/session';
+import { validateSameOrigin } from '@/lib/sameOrigin';
 
 // GET handler
 export async function GET(request: Request) {
@@ -29,10 +12,11 @@ export async function GET(request: Request) {
 
     // Public verification endpoint: check if token is valid
     if (token) {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       const result = await db`
-        SELECT email, role, is_used 
+        SELECT email, role, is_used, expires_at, revoked_at 
         FROM invitations 
-        WHERE token = ${token}
+        WHERE token_hash = ${tokenHash}
       `;
 
       if (result.rows.length === 0) {
@@ -43,6 +27,12 @@ export async function GET(request: Request) {
       if (invitation.is_used) {
         return NextResponse.json({ error: 'This invitation has already been used' }, { status: 400 });
       }
+      if (invitation.revoked_at) {
+        return NextResponse.json({ error: 'This invitation has been revoked' }, { status: 400 });
+      }
+      if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
+        return NextResponse.json({ error: 'This invitation has expired' }, { status: 400 });
+      }
 
       return NextResponse.json({
         email: invitation.email,
@@ -51,28 +41,34 @@ export async function GET(request: Request) {
     }
 
     // Secured endpoint: list all invitations (Admins only)
-    const admin = await getAdminSession();
-    if (!admin) {
+    const admin = await getSessionUser();
+    if (!admin || admin.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized. Editor session required.' }, { status: 401 });
     }
 
     const invitesResult = await db`
-      SELECT id, email, role, token, is_used, created_at
+      SELECT id, email, role, is_used, created_at, expires_at, used_at, revoked_at, created_by_user_id
       FROM invitations
       ORDER BY id DESC
     `;
 
     return NextResponse.json(invitesResult.rows);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Error in invitations GET:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 // POST handler
 export async function POST(request: Request) {
   try {
-    const admin = await getAdminSession();
-    if (!admin) {
+    // Same-origin check
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    const admin = await getSessionUser();
+    if (!admin || admin.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized. Editor session required.' }, { status: 401 });
     }
 
@@ -95,17 +91,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid email address format' }, { status: 400 });
       }
 
-      const token = crypto.randomUUID();
+      // Generate 256-bit raw opaque token (32 bytes = 64 hex chars)
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days expiration
 
       const insertResult = await db`
-        INSERT INTO invitations (email, role, token)
-        VALUES (${formattedEmail}, ${role}, ${token})
-        RETURNING id, email, role, token, is_used, created_at
+        INSERT INTO invitations (email, role, token_hash, expires_at, created_by_user_id)
+        VALUES (${formattedEmail}, ${role}, ${tokenHash}, ${expiresAt.toISOString()}, ${admin.id})
+        RETURNING id, email, role, is_used, created_at, expires_at, used_at, revoked_at, created_by_user_id
       `;
+
+      const row = insertResult.rows[0];
 
       return NextResponse.json({
         success: true,
-        invitation: insertResult.rows[0]
+        invitation: {
+          ...row,
+          token: rawToken // Return raw token only once on creation
+        }
       });
     }
 
@@ -114,9 +118,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invitation ID is required' }, { status: 400 });
       }
 
-      // Delete the invitation
+      // Set revoked_at timestamp
       await db`
-        DELETE FROM invitations 
+        UPDATE invitations
+        SET revoked_at = CURRENT_TIMESTAMP
         WHERE id = ${Number(id)}
       `;
 
@@ -125,6 +130,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Error in invitations POST:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

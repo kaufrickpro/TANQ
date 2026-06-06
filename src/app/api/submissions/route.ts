@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import db from '@/lib/db';
 import { put } from '@vercel/blob';
-import { decryptSession } from '@/lib/session';
+import crypto from 'crypto';
+import { getSessionUser } from '@/lib/session';
+import { validateSameOrigin } from '@/lib/sameOrigin';
 
-async function getSession() {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session_token');
-    if (!sessionCookie) return null;
-    return decryptSession(sessionCookie.value);
-  } catch (e) {
-    console.error('Error fetching session:', e);
-    return null;
-  }
+function mapSubmission(row: any) {
+  if (!row) return null;
+  const { file_path, ...rest } = row;
+  const fileName = file_path.split('/').pop() || 'manuscript';
+  return {
+    ...rest,
+    file_name: fileName,
+    download_url: `/api/submissions/download?submission_id=${row.id}`
+  };
 }
 
 export async function GET(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`SELECT * FROM submissions ORDER BY id DESC`;
-      return NextResponse.json(result.rows);
+      return NextResponse.json(result.rows.map(mapSubmission));
     }
 
     // Author checks
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`SELECT * FROM submissions WHERE author_email = ${email} ORDER BY id DESC`;
-      return NextResponse.json(result.rows);
+      return NextResponse.json(result.rows.map(mapSubmission));
     }
 
     // Reviewer checks
@@ -69,18 +69,27 @@ export async function GET(request: Request) {
         WHERE TRIM(LOWER(r.reviewer_email)) = TRIM(LOWER(${email}))
         ORDER BY s.id DESC
       `;
-      return NextResponse.json(result.rows);
+      return NextResponse.json(result.rows.map(row => {
+        const mapped = mapSubmission(row);
+        return mapped;
+      }));
     }
 
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Error in submissions GET:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
+    // CSRF Check
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -98,22 +107,35 @@ export async function POST(request: Request) {
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
-      title = formData.get('title') as string;
-      abstract = formData.get('abstract') as string;
-      keywords = formData.get('keywords') as string;
+      title = (formData.get('title') as string) || '';
+      abstract = (formData.get('abstract') as string) || '';
+      keywords = (formData.get('keywords') as string) || '';
 
       const file = formData.get('file') as File | null;
       if (!file) {
         return NextResponse.json({ error: 'File upload is required' }, { status: 400 });
       }
 
-      // Sanitise file name to prevent path issues
+      // File type check
+      const allowedExtensions = ['pdf', 'doc', 'docx'];
+      const nameParts = file.name.split('.');
+      const ext = nameParts.pop()?.toLowerCase();
+      if (!ext || !allowedExtensions.includes(ext)) {
+        return NextResponse.json({ error: 'Only PDF, DOC, and DOCX files are allowed.' }, { status: 400 });
+      }
+
+      // Size limit: 20MB
+      if (file.size > 20 * 1024 * 1024) {
+        return NextResponse.json({ error: 'File size must be less than 20MB.' }, { status: 400 });
+      }
+
+      // Upload to Vercel Blob with randomized path and private access
       const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      
-      // Upload to Vercel Blob
-      const blob = await put(safeName, file, { access: 'public' });
+      const randomPath = `manuscripts/${crypto.randomUUID()}/${safeName}`;
+      const blob = await put(randomPath, file, { access: 'private' });
       filePath = blob.url;
     } else {
+      // JSON fallback (unlikely, but handled)
       const body = await request.json();
       title = body.title;
       abstract = body.abstract;
@@ -135,16 +157,21 @@ export async function POST(request: Request) {
       RETURNING *
     `;
 
-    const newSubmission = result.rows[0];
-    return NextResponse.json(newSubmission);
+    return NextResponse.json(mapSubmission(result.rows[0]));
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Error in submissions POST:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const session = await getSession();
+    // CSRF Check
+    if (!validateSameOrigin(request)) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -167,13 +194,24 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'submission_id and file are required' }, { status: 400 });
     }
 
+    // File type check
+    const allowedExtensions = ['pdf', 'doc', 'docx'];
     const nameParts = file.name.split('.');
-    const ext = nameParts.pop();
+    const ext = nameParts.pop()?.toLowerCase();
+    if (!ext || !allowedExtensions.includes(ext)) {
+      return NextResponse.json({ error: 'Only PDF, DOC, and DOCX files are allowed.' }, { status: 400 });
+    }
+
+    // Size limit: 20MB
+    if (file.size > 20 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size must be less than 20MB.' }, { status: 400 });
+    }
+
+    // Upload revision to Vercel Blob with randomized path and private access
     const baseName = nameParts.join('.');
     const safeName = `${baseName}_editor_revision_${Date.now()}.${ext}`.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
-    // Upload the revision to Vercel Blob
-    const blob = await put(safeName, file, { access: 'public' });
+    const randomPath = `manuscripts/${crypto.randomUUID()}/${safeName}`;
+    const blob = await put(randomPath, file, { access: 'private' });
     const filePath = blob.url;
 
     const result = await db`
@@ -187,9 +225,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
     }
 
-    const updatedSubmission = result.rows[0];
-    return NextResponse.json(updatedSubmission);
+    return NextResponse.json(mapSubmission(result.rows[0]));
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('Error in submissions PUT:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

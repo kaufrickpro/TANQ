@@ -1,18 +1,53 @@
 import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
-import { hashPassword } from '../src/lib/password';
+import crypto from 'crypto';
 
 async function migrate() {
   console.log('🚀 Running TANQ database migration...\n');
   const { sql } = await import('@vercel/postgres');
 
-  // ── Clean Database ─────────────────────────────────────────────────────────
-  console.log('Dropping existing tables to clean database completely...');
-  await sql`DROP TABLE IF EXISTS reviews, articles, submissions, journal_volumes, issues, invitations, users CASCADE;`;
+  // ── Duplicate Check ────────────────────────────────────────────────────────
+  // Check if users table exists and contains case-insensitive duplicate usernames or emails
+  const tableExistsResult = await sql`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+        AND table_name = 'users'
+    );
+  `;
+  const usersTableExists = tableExistsResult.rows[0].exists;
+
+  if (usersTableExists) {
+    console.log('Checking for case-insensitive username or email conflicts...');
+    const dupUsernames = await sql`
+      SELECT LOWER(username) as username, COUNT(*) as count
+      FROM users
+      GROUP BY LOWER(username)
+      HAVING COUNT(*) > 1
+    `;
+    const dupEmails = await sql`
+      SELECT LOWER(email) as email, COUNT(*) as count
+      FROM users
+      GROUP BY LOWER(email)
+      HAVING COUNT(*) > 1
+    `;
+
+    if (dupUsernames.rows.length > 0 || dupEmails.rows.length > 0) {
+      console.error('❌ Conflict detected: duplicate records exist case-insensitively. Aborting migration.');
+      if (dupUsernames.rows.length > 0) {
+        console.error('Duplicate Usernames:', dupUsernames.rows);
+      }
+      if (dupEmails.rows.length > 0) {
+        console.error('Duplicate Emails:', dupEmails.rows);
+      }
+      throw new Error('Migration aborted due to duplicate usernames/emails.');
+    }
+    console.log('No username/email duplicates found.');
+  }
 
   // ── Tables ────────────────────────────────────────────────────────────────
 
-  console.log('Creating table: users');
+  console.log('Creating table if not exists: users');
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id            SERIAL PRIMARY KEY,
@@ -27,19 +62,117 @@ async function migrate() {
     );
   `;
 
-  console.log('Creating table: invitations');
+  console.log('Adding columns to users table...');
+  await sql`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN DEFAULT FALSE;
+  `;
+
+  console.log('Creating case-insensitive unique indexes for users table...');
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+  `;
+
+  console.log('Creating table if not exists: invitations');
   await sql`
     CREATE TABLE IF NOT EXISTS invitations (
       id         SERIAL PRIMARY KEY,
       email      TEXT NOT NULL,
       role       TEXT NOT NULL CHECK(role IN ('admin', 'reviewer')),
-      token      TEXT UNIQUE NOT NULL,
+      token      TEXT,
       is_used    BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
 
-  console.log('Creating table: issues');
+  console.log('Adding columns to invitations table...');
+  await sql`
+    ALTER TABLE invitations ADD COLUMN IF NOT EXISTS token_hash TEXT UNIQUE;
+  `;
+  await sql`
+    ALTER TABLE invitations ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+  `;
+  await sql`
+    ALTER TABLE invitations ADD COLUMN IF NOT EXISTS used_at TIMESTAMP;
+  `;
+  await sql`
+    ALTER TABLE invitations ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP;
+  `;
+  await sql`
+    ALTER TABLE invitations ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  `;
+
+  // Check if token column still exists in invitations to perform hash migration
+  const tokenColumnExistsResult = await sql`
+    SELECT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+        AND table_name = 'invitations' 
+        AND column_name = 'token'
+    );
+  `;
+  const tokenColumnExists = tokenColumnExistsResult.rows[0].exists;
+
+  if (tokenColumnExists) {
+    console.log('Migrating existing invitation tokens to token_hash and revoking outstanding ones...');
+    const existingInvites = await sql`SELECT id, token, is_used FROM invitations`;
+    for (const invite of existingInvites.rows) {
+      if (invite.token) {
+        const tokenHash = crypto.createHash('sha256').update(invite.token).digest('hex');
+        // Revoke outstanding invitations during rollout: outstanding means not yet used.
+        const revokedAt = invite.is_used ? null : new Date().toISOString();
+        const usedAt = invite.is_used ? new Date().toISOString() : null;
+        await sql`
+          UPDATE invitations
+          SET token_hash = ${tokenHash},
+              revoked_at = ${revokedAt},
+              used_at = ${usedAt}
+          WHERE id = ${invite.id}
+        `;
+      }
+    }
+
+    // Now set token_hash as NOT NULL and drop token column
+    console.log('Finalizing invitations table modifications...');
+    // Ensure all rows have token_hash before altering
+    await sql`
+      UPDATE invitations 
+      SET token_hash = encode(sha256(random()::text::bytea), 'hex') 
+      WHERE token_hash IS NULL;
+    `;
+    await sql`
+      ALTER TABLE invitations ALTER COLUMN token_hash SET NOT NULL;
+    `;
+    await sql`
+      ALTER TABLE invitations DROP COLUMN IF EXISTS token;
+    `;
+  }
+
+  console.log('Creating table if not exists: auth_sessions');
+  await sql`
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id            SERIAL PRIMARY KEY,
+      token_hash    TEXT UNIQUE NOT NULL,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at    TIMESTAMP NOT NULL,
+      last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      revoked_at    TIMESTAMP
+    );
+  `;
+
+  console.log('Creating table if not exists: auth_rate_limits');
+  await sql`
+    CREATE TABLE IF NOT EXISTS auth_rate_limits (
+      key        TEXT PRIMARY KEY,
+      count      INTEGER NOT NULL DEFAULT 1,
+      expires_at TIMESTAMP NOT NULL
+    );
+  `;
+
+  console.log('Creating table if not exists: issues');
   await sql`
     CREATE TABLE IF NOT EXISTS issues (
       id            SERIAL PRIMARY KEY,
@@ -53,7 +186,7 @@ async function migrate() {
     );
   `;
 
-  console.log('Creating table: journal_volumes');
+  console.log('Creating table if not exists: journal_volumes');
   await sql`
     CREATE TABLE IF NOT EXISTS journal_volumes (
       id       SERIAL PRIMARY KEY,
@@ -66,7 +199,7 @@ async function migrate() {
     );
   `;
 
-  console.log('Creating table: articles');
+  console.log('Creating table if not exists: articles');
   await sql`
     CREATE TABLE IF NOT EXISTS articles (
       id             SERIAL PRIMARY KEY,
@@ -83,7 +216,7 @@ async function migrate() {
     );
   `;
 
-  console.log('Creating table: submissions');
+  console.log('Creating table if not exists: submissions');
   await sql`
     CREATE TABLE IF NOT EXISTS submissions (
       id             SERIAL PRIMARY KEY,
@@ -99,7 +232,7 @@ async function migrate() {
     );
   `;
 
-  console.log('Creating table: reviews');
+  console.log('Creating table if not exists: reviews');
   await sql`
     CREATE TABLE IF NOT EXISTS reviews (
       id              SERIAL PRIMARY KEY,
@@ -114,21 +247,7 @@ async function migrate() {
     );
   `;
 
-  // ── Seed Data ─────────────────────────────────────────────────────────────
-
-  console.log('\nSeeding admin user...');
-  const adminHash = await hashPassword('Admin123');
-
-  await sql`
-    INSERT INTO users (username, password_hash, name, email, role, is_verified) VALUES
-      ('admin', ${adminHash}, 'Admin', 'admin@tanq.com', 'admin', TRUE)
-    ON CONFLICT (username) DO UPDATE SET 
-      password_hash = EXCLUDED.password_hash,
-      email = EXCLUDED.email,
-      is_verified = TRUE;
-  `;
-
-  console.log('\n✅ Migration complete! Database cleaned and admin user seeded.\n');
+  console.log('\n✅ Migration complete! Database tables verified and updated.\n');
   process.exit(0);
 }
 

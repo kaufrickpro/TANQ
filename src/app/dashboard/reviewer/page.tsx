@@ -10,7 +10,8 @@ export interface ReviewAssignment {
   title: string;
   abstract: string;
   keywords: string;
-  file_path: string;
+  download_url: string;
+  file_name: string;
   status: string;
   date_submitted: string;
   review_id: number;
@@ -44,26 +45,24 @@ export default function ReviewerDashboard() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  // Validate session
+  // Validate session and load user info
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
-    if (!sessionCookie) {
-      router.push('/dashboard/login');
-      return;
-    }
-
-    try {
-      const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
-      const sessionUser = JSON.parse(decoded);
-      if (sessionUser.role !== 'reviewer') {
+    fetch('/api/auth/session')
+      .then(async (res) => {
+        if (!res.ok) {
+          router.push('/dashboard/login');
+          return;
+        }
+        const sessionUser = await res.json();
+        if (sessionUser.role !== 'reviewer') {
+          router.push('/dashboard/login');
+          return;
+        }
+        setSession(sessionUser);
+      })
+      .catch(() => {
         router.push('/dashboard/login');
-        return;
-      }
-      setSession(sessionUser);
-    } catch {
-      router.push('/dashboard/login');
-    }
+      });
   }, [router]);
 
   const fetchAssignments = useCallback(async (email: string) => {
@@ -180,7 +179,7 @@ export default function ReviewerDashboard() {
                   <div className="flex flex-wrap items-center gap-3 text-[10px] font-sans font-bold uppercase tracking-wider text-text-muted border-t border-border-light pt-2">
                     <span>Assigned: <span className="normal-case font-normal text-text-primary">{asg.date_submitted}</span></span>
                     <span>|</span>
-                    <span>Blinded Draft: <span className="normal-case font-normal font-mono">{asg.file_path.split('/').pop()}</span></span>
+                    <span>Blinded Draft: <a href={asg.download_url} download className="text-link hover:text-link-hover hover:underline normal-case font-normal font-mono">{asg.file_name}</a></span>
                   </div>
                   <p className="text-sm text-text-primary/85 leading-relaxed font-serif pt-1">{asg.abstract}</p>
                   

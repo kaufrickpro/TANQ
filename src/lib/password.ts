@@ -48,8 +48,8 @@ export async function verifyPassword(password: string, storedHash: string): Prom
  * - At least one digit
  */
 export function validatePasswordQuality(password: string): { valid: boolean; error?: string } {
-  if (password.length < 8) {
-    return { valid: false, error: 'Password must be at least 8 characters long.' };
+  if (password.length < 12) {
+    return { valid: false, error: 'Password must be at least 12 characters long.' };
   }
   if (!/[A-Z]/.test(password)) {
     return { valid: false, error: 'Password must contain at least one uppercase letter.' };

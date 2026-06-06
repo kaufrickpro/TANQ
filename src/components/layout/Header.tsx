@@ -20,19 +20,18 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [session, setSession] = useState<UserSession | null>(null);
 
-  // Load session from cookie
+  // Load session from server
   useEffect(() => {
-    const checkSession = () => {
-      const cookies = document.cookie.split(';');
-      const sessionCookie = cookies.find(c => c.trim().startsWith('session_user='));
-      if (sessionCookie) {
-        try {
-          const decoded = decodeURIComponent(sessionCookie.split('=')[1]);
-          setSession(JSON.parse(decoded));
-        } catch {
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/session');
+        if (res.ok) {
+          const sessionUser = await res.json();
+          setSession(sessionUser);
+        } else {
           setSession(null);
         }
-      } else {
+      } catch {
         setSession(null);
       }
     };
@@ -46,7 +45,6 @@ export default function Header() {
         throw new Error('Logout request failed');
       }
 
-      document.cookie = 'session_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       setSession(null);
       router.push('/');
       router.refresh();

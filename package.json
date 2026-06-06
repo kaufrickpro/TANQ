@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "npx tsx scripts/migrate.ts",
-    "db:check": "npx tsx scripts/test-db.ts"
+    "admin:bootstrap": "npx tsx scripts/admin-bootstrap.ts",
+    "migrate:manuscripts": "npx tsx scripts/migrate-manuscripts.ts",
+    "db:check": "npx tsx scripts/test-db.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0",
@@ -27,6 +30,7 @@
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }

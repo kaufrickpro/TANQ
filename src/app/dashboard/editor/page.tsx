@@ -17,7 +17,8 @@ export interface Submission {
   keywords: string;
   author_name: string;
   author_email: string;
-  file_path: string;
+  download_url: string;
+  file_name: string;
   status: string;
   date_submitted: string;
 }
@@ -128,6 +129,8 @@ export default function EditorDashboard() {
     revisionFile,
     setRevisionFile,
     uploadingRevision,
+    pubPdfFile,
+    setPubPdfFile,
     fetchData,
     fetchInvites,
     handleUploadRevision,
@@ -138,7 +141,8 @@ export default function EditorDashboard() {
     handlePublishArticle,
     handleCreateIssue,
     handleUploadVolumePdf,
-    getStatusColor
+    getStatusColor,
+    newlyCreatedInviteUrl
   } = useEditorDashboard();
 
   if (!session) return null;
@@ -409,6 +413,7 @@ export default function EditorDashboard() {
             handleCreateInvite={handleCreateInvite}
             handleRevokeInvite={handleRevokeInvite}
             handleCopyLink={handleCopyLink}
+            newlyCreatedInviteUrl={newlyCreatedInviteUrl}
           />
         )}
       </div>
@@ -442,6 +447,8 @@ export default function EditorDashboard() {
             setRevisionFile={setRevisionFile}
             uploadingRevision={uploadingRevision}
             handleUploadRevision={handleUploadRevision}
+            pubPdfFile={pubPdfFile}
+            setPubPdfFile={setPubPdfFile}
           />
         ) : (
           <div className="bg-bg-card border border-border-custom rounded-sm p-6 text-center space-y-3 text-text-muted py-16">

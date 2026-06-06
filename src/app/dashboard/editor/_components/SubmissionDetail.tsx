@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Send, Award } from 'lucide-react';
+import { Users, Send, Award, ShieldAlert } from 'lucide-react';
 import type { Submission, Review, Issue } from '../page';
 
 interface SubmissionDetailProps {
@@ -28,6 +28,8 @@ interface SubmissionDetailProps {
   setRevisionFile: (val: File | null) => void;
   uploadingRevision: boolean;
   handleUploadRevision: (e: React.FormEvent) => void;
+  pubPdfFile: File | null;
+  setPubPdfFile: (val: File | null) => void;
 }
 
 export default function SubmissionDetail({
@@ -55,7 +57,9 @@ export default function SubmissionDetail({
   revisionFile,
   setRevisionFile,
   uploadingRevision,
-  handleUploadRevision
+  handleUploadRevision,
+  pubPdfFile,
+  setPubPdfFile
 }: SubmissionDetailProps) {
   return (
     <div className="space-y-6">
@@ -76,8 +80,8 @@ export default function SubmissionDetail({
           <p><strong>Current Status:</strong> <span className="uppercase font-sans text-[10px] tracking-wider text-olive font-bold bg-sand/30 px-2.5 py-0.5 rounded-sm border border-border-custom">{selectedSub.status.replace('_', ' ')}</span></p>
           <p className="pt-2.5 border-t border-border-light mt-2">
             <strong>Blinded Draft File: </strong> 
-            <a href={selectedSub.file_path} download className="text-link hover:text-link-hover hover:underline font-bold font-mono text-xs">
-              {selectedSub.file_path.split('/').pop()}
+            <a href={selectedSub.download_url} download className="text-link hover:text-link-hover hover:underline font-bold font-mono text-xs">
+              {selectedSub.file_name}
             </a>
           </p>
         </div>
@@ -157,7 +161,7 @@ export default function SubmissionDetail({
           <form onSubmit={handleAssignReviewer} className="space-y-3">
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">Reviewer Name</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Reviewer Name</label>
                 <input
                   type="text"
                   required
@@ -168,7 +172,7 @@ export default function SubmissionDetail({
                 />
               </div>
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">Reviewer Email</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Reviewer Email</label>
                 <input
                   type="email"
                   required
@@ -202,10 +206,10 @@ export default function SubmissionDetail({
           <h3 className="font-serif font-bold text-sm text-text-heading flex items-center gap-1.5 border-b border-border-light pb-2.5 uppercase tracking-wide">
             <Award size={16} /> Publishing Wizard
           </h3>
-          <form onSubmit={handlePublishArticle} className="space-y-3">
+          <form onSubmit={handlePublishArticle} className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">Schedule to Issue</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Schedule to Issue</label>
                 <select
                   value={pubIssueId}
                   onChange={(e) => setPubIssueId(Number(e.target.value))}
@@ -217,7 +221,7 @@ export default function SubmissionDetail({
                 </select>
               </div>
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">Article Type</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Article Type</label>
                 <select
                   value={pubType}
                   onChange={(e) => setPubType(e.target.value)}
@@ -230,7 +234,7 @@ export default function SubmissionDetail({
                 </select>
               </div>
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">DOI Suffix</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">DOI Suffix</label>
                 <input
                   type="text"
                   required
@@ -240,7 +244,7 @@ export default function SubmissionDetail({
                 />
               </div>
               <div>
-                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1">Page Range</label>
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Page Range</label>
                 <input
                   type="text"
                   required
@@ -249,10 +253,27 @@ export default function SubmissionDetail({
                   className="bg-white border border-border-custom rounded-sm w-full px-3 py-2 text-sm text-black focus:outline-none shadow-sm font-serif"
                 />
               </div>
+              
+              {/* Final Article PDF Upload Field */}
+              <div className="col-span-2">
+                <label className="block font-bold uppercase tracking-wider text-text-muted mb-1.5">Final Article PDF (Required)</label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setPubPdfFile(e.target.files?.[0] || null)}
+                  className="bg-white border border-border-custom rounded-sm px-3 py-2 w-full text-xs text-text-primary focus:outline-none font-sans"
+                  accept="application/pdf"
+                />
+                <div className="bg-sand/10 border border-border-light rounded-sm p-3 mt-2 flex gap-2 items-start text-[10px] text-text-muted font-serif leading-normal">
+                  <ShieldAlert className="text-olive shrink-0 mt-0.5" size={14} />
+                  <span>The final PDF will be uploaded to public storage. Verify that the file layout conforms to standard TANQ template formatting.</span>
+                </div>
+              </div>
             </div>
+            
             <button
               type="submit"
-              disabled={publishing}
+              disabled={publishing || !pubPdfFile}
               className="bg-olive hover:bg-link-hover text-white font-bold px-4 py-2.5 rounded-sm text-xs shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 uppercase tracking-wider"
             >
               Publish Article
