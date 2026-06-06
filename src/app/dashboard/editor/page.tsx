@@ -8,6 +8,7 @@ import VolumePdfManager from './_components/VolumePdfManager';
 import NewIssueForm from './_components/NewIssueForm';
 import InviteTeamSection from './_components/InviteTeamSection';
 import SubmissionDetail from './_components/SubmissionDetail';
+import AccountManagementSection from './_components/AccountManagementSection';
 import { useEditorDashboard } from './_hooks/useEditorDashboard';
 
 export interface Submission {
@@ -142,15 +143,29 @@ export default function EditorDashboard() {
     handleCreateIssue,
     handleUploadVolumePdf,
     getStatusColor,
-    newlyCreatedInviteUrl
+    newlyCreatedInviteUrl,
+    accounts,
+    loadingAccounts,
+    accountsSearch,
+    setAccountsSearch,
+    accountsRoleFilter,
+    setAccountsRoleFilter,
+    accountsStatusFilter,
+    setAccountsStatusFilter,
+    fetchAccounts,
+    handleDisableAccount,
+    handleRestoreAccount,
+    handleDeleteAccount
   } = useEditorDashboard();
 
   if (!session) return null;
 
+  const isAccountsView = editorView === 'accounts';
+
   return (
     <div className="flex-1 max-w-[1120px] mx-auto w-full px-6 sm:px-8 py-12 font-serif grid grid-cols-1 lg:grid-cols-12 gap-8 items-start bg-bg-page">
-      {/* Left Panel: Submissions queue, Issues/Volumes manager, or Invitation manager */}
-      <div className="lg:col-span-6 space-y-6">
+      {/* Left Panel: Submissions queue, Issues/Volumes manager, Invitation manager, or Accounts manager */}
+      <div className={`${isAccountsView ? 'lg:col-span-12' : 'lg:col-span-6'} space-y-6`}>
         <div className="flex justify-between items-end border-b border-border-custom">
           <div className="flex gap-4 -mb-[1px]">
             <button
@@ -182,11 +197,28 @@ export default function EditorDashboard() {
             >
               Invite Team
             </button>
+            <button
+              onClick={() => {
+                setEditorView('accounts');
+                fetchAccounts();
+              }}
+              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
+                editorView === 'accounts' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
+              }`}
+            >
+              Accounts
+            </button>
           </div>
           
           <div className="flex items-center gap-2 pb-3 font-sans text-[11px] font-bold uppercase tracking-wider">
             <button 
-              onClick={editorView === 'invites' ? fetchInvites : fetchData}
+              onClick={
+                editorView === 'invites' 
+                  ? fetchInvites 
+                  : editorView === 'accounts' 
+                  ? fetchAccounts 
+                  : fetchData
+              }
               className="inline-flex items-center justify-center w-[29px] h-[29px] text-text-muted hover:text-olive border border-border-custom bg-bg-card hover:bg-sand/10 rounded-sm cursor-pointer transition-colors"
             >
               <RefreshCw size={12} />
@@ -416,50 +448,68 @@ export default function EditorDashboard() {
             newlyCreatedInviteUrl={newlyCreatedInviteUrl}
           />
         )}
+
+        {editorView === 'accounts' && (
+          <AccountManagementSection
+            accounts={accounts}
+            loadingAccounts={loadingAccounts}
+            accountsSearch={accountsSearch}
+            setAccountsSearch={setAccountsSearch}
+            accountsRoleFilter={accountsRoleFilter}
+            setAccountsRoleFilter={setAccountsRoleFilter}
+            accountsStatusFilter={accountsStatusFilter}
+            setAccountsStatusFilter={setAccountsStatusFilter}
+            handleDisableAccount={handleDisableAccount}
+            handleRestoreAccount={handleRestoreAccount}
+            handleDeleteAccount={handleDeleteAccount}
+          />
+        )}
       </div>
 
       {/* Right Panel: Selected Submission actions & reviews */}
-      <div className="lg:col-span-6 space-y-6">
-        {selectedSub ? (
-          <SubmissionDetail
-            selectedSub={selectedSub}
-            setSelectedSub={setSelectedSub}
-            reviews={reviews}
-            revName={revName}
-            setRevName={setRevName}
-            revEmail={revEmail}
-            setRevEmail={setRevEmail}
-            assigning={assigning}
-            handleAssignReviewer={handleAssignReviewer}
-            pubIssueId={pubIssueId}
-            setPubIssueId={setPubIssueId}
-            issues={issues}
-            pubType={pubType}
-            setPubType={setPubType}
-            pubDoi={pubDoi}
-            setPubDoi={setPubDoi}
-            pubPages={pubPages}
-            setPubPages={setPubPages}
-            publishing={publishing}
-            handlePublishArticle={handlePublishArticle}
-            showDemo={showDemo}
-            revisionFile={revisionFile}
-            setRevisionFile={setRevisionFile}
-            uploadingRevision={uploadingRevision}
-            handleUploadRevision={handleUploadRevision}
-            pubPdfFile={pubPdfFile}
-            setPubPdfFile={setPubPdfFile}
-          />
-        ) : (
-          <div className="bg-bg-card border border-border-custom rounded-sm p-6 text-center space-y-3 text-text-muted py-16">
-            <BookOpen className="mx-auto text-text-muted" size={32} />
-            <h3 className="font-serif font-bold text-sm text-text-heading uppercase">Select a paper</h3>
-            <p className="text-xs leading-relaxed max-w-xs mx-auto font-serif">
-              Click on any submission in the queue on the left to assign peer reviewers, check reviewer comments, and publish manuscripts.
-            </p>
-          </div>
-        )}
-      </div>
+      {!isAccountsView && (
+        <div className="lg:col-span-6 space-y-6">
+          {selectedSub ? (
+            <SubmissionDetail
+              selectedSub={selectedSub}
+              setSelectedSub={setSelectedSub}
+              reviews={reviews}
+              revName={revName}
+              setRevName={setRevName}
+              revEmail={revEmail}
+              setRevEmail={setRevEmail}
+              assigning={assigning}
+              handleAssignReviewer={handleAssignReviewer}
+              pubIssueId={pubIssueId}
+              setPubIssueId={setPubIssueId}
+              issues={issues}
+              pubType={pubType}
+              setPubType={setPubType}
+              pubDoi={pubDoi}
+              setPubDoi={setPubDoi}
+              pubPages={pubPages}
+              setPubPages={setPubPages}
+              publishing={publishing}
+              handlePublishArticle={handlePublishArticle}
+              showDemo={showDemo}
+              revisionFile={revisionFile}
+              setRevisionFile={setRevisionFile}
+              uploadingRevision={uploadingRevision}
+              handleUploadRevision={handleUploadRevision}
+              pubPdfFile={pubPdfFile}
+              setPubPdfFile={setPubPdfFile}
+            />
+          ) : (
+            <div className="bg-bg-card border border-border-custom rounded-sm p-6 text-center space-y-3 text-text-muted py-16">
+              <BookOpen className="mx-auto text-text-muted" size={32} />
+              <h3 className="font-serif font-bold text-sm text-text-heading uppercase">Select a paper</h3>
+              <p className="text-xs leading-relaxed max-w-xs mx-auto font-serif">
+                Click on any submission in the queue on the left to assign peer reviewers, check reviewer comments, and publish manuscripts.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

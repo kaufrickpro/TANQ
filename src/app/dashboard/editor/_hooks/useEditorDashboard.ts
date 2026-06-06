@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Submission, Review, Issue, JournalVolume } from '../page';
+import type { ManagedAccount } from '@/app/api/accounts/route';
 
 interface UserSession {
+  id: number;
   username: string;
   name: string;
   email: string;
@@ -34,8 +36,15 @@ export function useEditorDashboard() {
   const [publishing, setPublishing] = useState(false);
   const [pubPdfFile, setPubPdfFile] = useState<File | null>(null);
 
-  // View state for Editor Dashboard ('queue', 'invites', or 'issues')
-  const [editorView, setEditorView] = useState<'queue' | 'invites' | 'issues'>('queue');
+  // View state for Editor Dashboard ('queue', 'invites', 'issues', or 'accounts')
+  const [editorView, setEditorView] = useState<'queue' | 'invites' | 'issues' | 'accounts'>('queue');
+  
+  // Account management state
+  const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountsSearch, setAccountsSearch] = useState('');
+  const [accountsRoleFilter, setAccountsRoleFilter] = useState('all');
+  const [accountsStatusFilter, setAccountsStatusFilter] = useState('all');
   
   // Invitation management state
   const [invites, setInvites] = useState<any[]>([]);
@@ -147,12 +156,88 @@ export function useEditorDashboard() {
     }
   }, []);
 
+  const fetchAccounts = useCallback(async () => {
+    setLoadingAccounts(true);
+    try {
+      const res = await fetch('/api/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data);
+      }
+    } catch (e) {
+      console.error('Error fetching accounts:', e);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, []);
+
+  const handleDisableAccount = async (userId: number) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to disable account');
+      }
+      setSuccess('Account disabled successfully.');
+      fetchAccounts();
+    } catch (err: any) {
+      setError(err.message || 'Error disabling account');
+    }
+  };
+
+  const handleRestoreAccount = async (userId: number) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore', userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to restore account');
+      }
+      setSuccess('Account restored successfully.');
+      fetchAccounts();
+    } catch (err: any) {
+      setError(err.message || 'Error restoring account');
+    }
+  };
+
+  const handleDeleteAccount = async (userId: number, confirmationEmail: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', userId, confirmationEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete account');
+      }
+      setSuccess('Account permanently deleted.');
+      fetchAccounts();
+    } catch (err: any) {
+      setError(err.message || 'Error deleting account');
+    }
+  };
+
   useEffect(() => {
     if (session) {
       fetchData();
       fetchInvites();
+      fetchAccounts();
     }
-  }, [session, fetchData, fetchInvites]);
+  }, [session, fetchData, fetchInvites, fetchAccounts]);
 
   const handleUploadRevision = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -590,6 +675,19 @@ export function useEditorDashboard() {
     handleUploadVolumePdf,
     handleUploadExistingIssuePdf,
     getStatusColor,
-    newlyCreatedInviteUrl
+    newlyCreatedInviteUrl,
+    accounts,
+    setAccounts,
+    loadingAccounts,
+    accountsSearch,
+    setAccountsSearch,
+    accountsRoleFilter,
+    setAccountsRoleFilter,
+    accountsStatusFilter,
+    setAccountsStatusFilter,
+    fetchAccounts,
+    handleDisableAccount,
+    handleRestoreAccount,
+    handleDeleteAccount
   };
 }
