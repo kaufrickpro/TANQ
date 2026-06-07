@@ -18,10 +18,21 @@ export interface Submission {
   keywords: string;
   author_name: string;
   author_email: string;
-  download_url: string;
+  download_url: string | null;
   file_name: string;
   status: string;
   date_submitted: string;
+  withdrawal_status?: string | null;
+  submission_type?: string;
+  topic?: string;
+  language?: string;
+  short_title?: string;
+  co_authors?: any[];
+  project_number?: string;
+  ethics_statement?: string;
+  supporting_institution?: string;
+  acknowledgements?: string;
+  editor_note?: string;
 }
 
 export interface Review {
@@ -155,7 +166,9 @@ export default function EditorDashboard() {
     fetchAccounts,
     handleDisableAccount,
     handleRestoreAccount,
-    handleDeleteAccount
+    handleDeleteAccount,
+    handleApproveWithdrawal,
+    handleRejectWithdrawal,
   } = useEditorDashboard();
 
   if (!session) return null;
@@ -498,6 +511,8 @@ export default function EditorDashboard() {
               handleUploadRevision={handleUploadRevision}
               pubPdfFile={pubPdfFile}
               setPubPdfFile={setPubPdfFile}
+              handleApproveWithdrawal={handleApproveWithdrawal}
+              handleRejectWithdrawal={handleRejectWithdrawal}
             />
           ) : (
             <div className="bg-bg-card border border-border-custom rounded-sm p-6 text-center space-y-3 text-text-muted py-16">

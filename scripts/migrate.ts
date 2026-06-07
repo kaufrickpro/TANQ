@@ -225,10 +225,59 @@ async function migrate() {
       keywords       TEXT NOT NULL,
       author_name    TEXT NOT NULL,
       author_email   TEXT NOT NULL,
-      file_path      TEXT NOT NULL,
+      file_path      TEXT NOT NULL DEFAULT '',
       status         TEXT DEFAULT 'submitted'
-                     CHECK(status IN ('submitted','in_review','revision_requested','accepted','rejected','published')),
-      date_submitted TEXT NOT NULL
+                     CHECK(status IN ('draft','submitted','in_review','revision_requested','accepted','rejected','published','withdrawn')),
+      date_submitted TEXT NOT NULL DEFAULT ''
+    );
+  `;
+
+  // Drop the old status CHECK constraint if it exists (so we can add the new one)
+  console.log('Updating submissions status CHECK constraint to include draft and withdrawn...');
+  await sql`
+    ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_status_check;
+  `;
+  await sql`
+    ALTER TABLE submissions ADD CONSTRAINT submissions_status_check
+      CHECK(status IN ('draft','submitted','in_review','revision_requested','accepted','rejected','published','withdrawn'));
+  `;
+
+  // Make file_path and date_submitted nullable-compatible with defaults for draft rows
+  await sql`
+    ALTER TABLE submissions ALTER COLUMN file_path SET DEFAULT '';
+  `;
+  await sql`
+    ALTER TABLE submissions ALTER COLUMN date_submitted SET DEFAULT '';
+  `;
+
+  console.log('Adding wizard + withdrawal columns to submissions table...');
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS draft_step INTEGER DEFAULT 1;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS submission_type TEXT DEFAULT 'Research Article';`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS topic TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'English';`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS short_title TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS co_authors JSONB DEFAULT '[]';`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS files_meta JSONB DEFAULT '{}';`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS project_number TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ethics_statement TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS supporting_institution TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS acknowledgements TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS editor_note TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS checklist_confirmed BOOLEAN DEFAULT FALSE;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS withdrawal_status TEXT DEFAULT NULL;`;
+
+  console.log('Creating table if not exists: withdrawal_requests');
+  await sql`
+    CREATE TABLE IF NOT EXISTS withdrawal_requests (
+      id              SERIAL PRIMARY KEY,
+      submission_id   INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+      requested_by    TEXT NOT NULL,
+      reason          TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending'
+                      CHECK(status IN ('pending','approved','rejected')),
+      editor_note     TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      resolved_at     TIMESTAMPTZ
     );
   `;
 

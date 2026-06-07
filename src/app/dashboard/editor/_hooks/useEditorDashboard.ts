@@ -578,13 +578,61 @@ export function useEditorDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'submitted': return 'bg-sand text-olive border-border-custom';
-      case 'in_review': return 'bg-sand/60 text-olive border-border-light';
+      case 'draft':              return 'bg-border-light text-text-muted border-border-light';
+      case 'submitted':          return 'bg-sand text-olive border-border-custom';
+      case 'in_review':          return 'bg-sand/60 text-olive border-border-light';
       case 'revision_requested': return 'bg-charcoal text-white border-charcoal';
-      case 'accepted': return 'bg-olive text-white border-olive';
-      case 'rejected': return 'bg-white text-text-muted border-border-light';
-      case 'published': return 'bg-olive text-white border-olive';
-      default: return 'bg-white text-text-muted border-border-light';
+      case 'accepted':           return 'bg-olive text-white border-olive';
+      case 'rejected':           return 'bg-white text-text-muted border-border-light';
+      case 'published':          return 'bg-olive text-white border-olive';
+      case 'withdrawn':          return 'bg-white text-text-muted border-border-light';
+      default:                   return 'bg-white text-text-muted border-border-light';
+    }
+  };
+
+  const handleApproveWithdrawal = async (submissionId: number, editorNote?: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/withdrawal-decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
+        body: JSON.stringify({ decision: 'approved', editor_note: editorNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to approve withdrawal');
+      setSuccess('Withdrawal approved. Submission is now withdrawn and author has been notified.');
+      setSelectedSub(null);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Error approving withdrawal');
+    }
+  };
+
+  const handleRejectWithdrawal = async (submissionId: number, editorNote?: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/withdrawal-decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
+        body: JSON.stringify({ decision: 'rejected', editor_note: editorNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reject withdrawal');
+      setSuccess('Withdrawal request rejected. Submission continues in review. Author has been notified.');
+      fetchData();
+      if (selectedSub?.id === submissionId) {
+        // refresh the selected sub
+        const updated = await fetch('/api/submissions?role=editor');
+        if (updated.ok) {
+          const subs = await updated.json();
+          const refreshed = subs.find((s: any) => s.id === submissionId);
+          if (refreshed) setSelectedSub(refreshed);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error rejecting withdrawal');
     }
   };
 
@@ -688,6 +736,8 @@ export function useEditorDashboard() {
     fetchAccounts,
     handleDisableAccount,
     handleRestoreAccount,
-    handleDeleteAccount
+    handleDeleteAccount,
+    handleApproveWithdrawal,
+    handleRejectWithdrawal,
   };
 }

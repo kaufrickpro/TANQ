@@ -11,7 +11,7 @@
     "admin:bootstrap": "npx tsx scripts/admin-bootstrap.ts",
     "migrate:manuscripts": "npx tsx scripts/migrate-manuscripts.ts",
     "db:check": "npx tsx scripts/test-db.ts",
-    "test": "vitest run"
+    "test": "vitest run --fileParallelism=false"
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0",

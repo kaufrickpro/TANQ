@@ -1,5 +1,5 @@
-import React from 'react';
-import { Users, Send, Award, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, Send, Award, ShieldAlert, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import type { Submission, Review, Issue } from '../page';
 
 interface SubmissionDetailProps {
@@ -30,6 +30,8 @@ interface SubmissionDetailProps {
   handleUploadRevision: (e: React.FormEvent) => void;
   pubPdfFile: File | null;
   setPubPdfFile: (val: File | null) => void;
+  handleApproveWithdrawal: (submissionId: number, editorNote?: string) => Promise<void>;
+  handleRejectWithdrawal: (submissionId: number, editorNote?: string) => Promise<void>;
 }
 
 export default function SubmissionDetail({
@@ -59,11 +61,71 @@ export default function SubmissionDetail({
   uploadingRevision,
   handleUploadRevision,
   pubPdfFile,
-  setPubPdfFile
+  setPubPdfFile,
+  handleApproveWithdrawal,
+  handleRejectWithdrawal,
 }: SubmissionDetailProps) {
+  const [withdrawalNote, setWithdrawalNote] = useState('');
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
+
+  const onApprove = async () => {
+    setProcessingWithdrawal(true);
+    await handleApproveWithdrawal(selectedSub.id, withdrawalNote || undefined);
+    setProcessingWithdrawal(false);
+    setWithdrawalNote('');
+  };
+
+  const onReject = async () => {
+    setProcessingWithdrawal(true);
+    await handleRejectWithdrawal(selectedSub.id, withdrawalNote || undefined);
+    setProcessingWithdrawal(false);
+    setWithdrawalNote('');
+  };
+
   return (
     <div className="space-y-6">
-      
+
+      {/* Withdrawal Request Banner */}
+      {selectedSub.withdrawal_status === 'requested' && (
+        <div className="bg-bg-card border border-border-custom rounded-sm overflow-hidden">
+          <div className="bg-charcoal text-white px-5 py-3 flex items-center gap-2">
+            <AlertTriangle size={15} className="shrink-0" />
+            <p className="text-xs font-sans font-bold uppercase tracking-wider">Withdrawal Requested by Author</p>
+          </div>
+          <div className="px-5 py-4 space-y-4">
+            <p className="text-xs font-serif text-text-muted leading-relaxed">
+              The author has submitted a withdrawal request. Provide an optional note before deciding.
+            </p>
+            <div>
+              <label className="block text-[10px] font-sans font-bold uppercase tracking-wider text-text-muted mb-1.5">Editor Note (Optional)</label>
+              <textarea
+                rows={2}
+                value={withdrawalNote}
+                onChange={e => setWithdrawalNote(e.target.value)}
+                placeholder="Briefly explain your decision..."
+                className="bg-white border border-border-custom rounded-sm w-full px-3 py-2 text-xs text-black focus:outline-none focus:border-olive font-serif resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={onApprove}
+                disabled={processingWithdrawal}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-olive hover:bg-link-hover text-white font-sans font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={13} /> Approve Withdrawal
+              </button>
+              <button
+                onClick={onReject}
+                disabled={processingWithdrawal}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-border-custom bg-white text-text-heading hover:bg-sand/20 font-sans font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer transition-colors disabled:opacity-50"
+              >
+                <X size={13} /> Reject Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Submission Detail Summary */}
       <div className="bg-bg-card border border-border-custom p-6 shadow-sm space-y-4 text-xs text-text-primary font-serif">
         <div className="border-b border-border-light pb-3 flex justify-between items-start gap-4">
@@ -80,9 +142,13 @@ export default function SubmissionDetail({
           <p><strong>Current Status:</strong> <span className="uppercase font-sans text-[10px] tracking-wider text-olive font-bold bg-sand/30 px-2.5 py-0.5 rounded-sm border border-border-custom">{selectedSub.status.replace('_', ' ')}</span></p>
           <p className="pt-2.5 border-t border-border-light mt-2">
             <strong>Blinded Draft File: </strong> 
-            <a href={selectedSub.download_url} download className="text-link hover:text-link-hover hover:underline font-bold font-mono text-xs">
-              {selectedSub.file_name}
-            </a>
+            {selectedSub.download_url ? (
+              <a href={selectedSub.download_url} download className="text-link hover:text-link-hover hover:underline font-bold font-mono text-xs">
+                {selectedSub.file_name}
+              </a>
+            ) : (
+              <span className="text-text-muted text-xs font-mono">&mdash;</span>
+            )}
           </p>
         </div>
 

@@ -78,13 +78,13 @@ export async function checkLoginRateLimit(identifier: string, ip: string): Promi
   }
 
   // 2. Failures for identifier in 15 minutes
-  const idFailures = await getCount(`login_failures:id:${cleanId}`, 90000);
+  const idFailures = await getCount(`login_failures:id:${cleanId}`, 900000);
   if (idFailures >= 5) {
     return { success: false, error: 'Too many failed login attempts. Please try again in 15 minutes.' };
   }
 
   // 3. Failures for IP in 15 minutes
-  const ipFailures = await getCount(`login_failures:ip:${ip}`, 90000);
+  const ipFailures = await getCount(`login_failures:ip:${ip}`, 900000);
   if (ipFailures >= 5) {
     return { success: false, error: 'Too many failed login attempts from this IP. Please try again in 15 minutes.' };
   }
@@ -98,8 +98,8 @@ export async function recordLoginAttempt(ip: string): Promise<void> {
 
 export async function recordLoginFailure(identifier: string, ip: string): Promise<void> {
   const cleanId = identifier.trim().toLowerCase();
-  await incrementCount(`login_failures:id:${cleanId}`, 90000);
-  await incrementCount(`login_failures:ip:${ip}`, 90000);
+  await incrementCount(`login_failures:id:${cleanId}`, 900000);
+  await incrementCount(`login_failures:ip:${ip}`, 900000);
 }
 
 /**
@@ -117,12 +117,12 @@ export async function checkOtpVerificationRateLimit(email: string, ip: string): 
     return { success: false, error: 'OTP verification is blocked for this IP. Please try again in 30 minutes.' };
   }
 
-  const emailFailures = await getCount(`otp_failures:email:${cleanEmail}`, 90000);
+  const emailFailures = await getCount(`otp_failures:email:${cleanEmail}`, 900000);
   if (emailFailures >= 5) {
     return { success: false, error: 'Too many verification failures. Account blocked for 30 minutes.' };
   }
 
-  const ipFailures = await getCount(`otp_failures:ip:${ip}`, 90000);
+  const ipFailures = await getCount(`otp_failures:ip:${ip}`, 900000);
   if (ipFailures >= 5) {
     return { success: false, error: 'Too many verification failures from this IP. Blocked for 30 minutes.' };
   }
@@ -132,8 +132,8 @@ export async function checkOtpVerificationRateLimit(email: string, ip: string): 
 
 export async function recordOtpFailure(email: string, ip: string): Promise<void> {
   const cleanEmail = email.trim().toLowerCase();
-  const emailFailCount = await incrementCount(`otp_failures:email:${cleanEmail}`, 90000);
-  const ipFailCount = await incrementCount(`otp_failures:ip:${ip}`, 90000);
+  const emailFailCount = await incrementCount(`otp_failures:email:${cleanEmail}`, 900000);
+  const ipFailCount = await incrementCount(`otp_failures:ip:${ip}`, 900000);
 
   if (emailFailCount >= 5 || ipFailCount >= 5) {
     // Invalidate OTP in database
