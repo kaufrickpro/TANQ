@@ -637,6 +637,26 @@ export function useEditorDashboard() {
     }
   };
 
+  const handleDeleteSubmission = async (submissionId: number) => {
+    if (!confirm('Are you sure you want to permanently delete this submission? This action cannot be undone.')) return;
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`/api/submissions?submission_id=${submissionId}`, {
+        method: 'DELETE',
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete submission');
+      }
+      setSuccess('Submission permanently deleted.');
+      setSelectedSub(null);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Error deleting submission');
+    }
+  };
+
   return {
     session,
     submissions,
@@ -740,5 +760,6 @@ export function useEditorDashboard() {
     handleDeleteAccount,
     handleApproveWithdrawal,
     handleRejectWithdrawal,
+    handleDeleteSubmission,
   };
 }

@@ -278,10 +278,22 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should reject non-author request', async () => {
-      globalThis.testSessionToken = adminToken;
+    it('should reject non-author, non-admin request (e.g. reviewer)', async () => {
+      const passHash = await hashPassword('TestPassword123!');
+      const reviewerRes = await db`
+        INSERT INTO users (username, password_hash, name, email, role, is_verified)
+        VALUES ('reviewer_test', ${passHash}, 'Reviewer Test', 'reviewer_test@tanq.com', 'reviewer', TRUE)
+        RETURNING id
+      `;
+      const reviewerToken = await createSession(reviewerRes.rows[0].id);
+
+      globalThis.testSessionToken = reviewerToken;
       const req = new Request('http://localhost/api/submissions?submission_id=123', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'host': 'localhost',
+          'origin': 'http://localhost'
+        }
       });
       const res = await submissionsHandler.DELETE(req);
       expect(res.status).toBe(403);
@@ -355,6 +367,63 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       const subId = subRes.rows[0].id;
 
       globalThis.testSessionToken = authorToken;
+      const req = new Request(`http://localhost/api/submissions?submission_id=${subId}`, {
+        method: 'DELETE',
+        headers: {
+          'host': 'localhost',
+          'origin': 'http://localhost'
+        }
+      });
+
+      const res = await submissionsHandler.DELETE(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Cannot delete');
+    });
+
+    it('should allow admin to delete any submission and cascade reviews', async () => {
+      const subRes = await db`
+        INSERT INTO submissions (title, abstract, keywords, author_name, author_email, file_path, status, date_submitted)
+        VALUES ('Paper 1', 'Abstract 1', 'keys', 'Author One', 'author1@tanq.com', 'https://mock.blob/file.pdf', 'in_review', '2026-06-07')
+        RETURNING id
+      `;
+      const subId = subRes.rows[0].id;
+
+      await db`
+        INSERT INTO reviews (submission_id, reviewer_name, reviewer_email, comments, recommendation, score, date_reviewed)
+        VALUES (${subId}, 'Reviewer', 'rev@tanq.com', 'Good', 'accept', 5, '2026-06-07')
+      `;
+
+      globalThis.testSessionToken = adminToken;
+      const req = new Request(`http://localhost/api/submissions?submission_id=${subId}`, {
+        method: 'DELETE',
+        headers: {
+          'host': 'localhost',
+          'origin': 'http://localhost'
+        }
+      });
+
+      const res = await submissionsHandler.DELETE(req);
+      expect(res.status).toBe(200);
+
+      const checkSub = await db`SELECT * FROM submissions WHERE id = ${subId}`;
+      expect(checkSub.rows.length).toBe(0);
+
+      const checkReviews = await db`SELECT * FROM reviews WHERE submission_id = ${subId}`;
+      expect(checkReviews.rows.length).toBe(0);
+
+      expect(del).toHaveBeenCalledWith('https://mock.blob/file.pdf');
+    });
+
+    it('should block admin from deleting a published submission', async () => {
+      const subRes = await db`
+        INSERT INTO submissions (title, abstract, keywords, author_name, author_email, file_path, status, date_submitted)
+        VALUES ('Paper 1', 'Abstract 1', 'keys', 'Author One', 'author1@tanq.com', 'https://mock.blob/file.pdf', 'published', '2026-06-07')
+        RETURNING id
+      `;
+      const subId = subRes.rows[0].id;
+
+      globalThis.testSessionToken = adminToken;
       const req = new Request(`http://localhost/api/submissions?submission_id=${subId}`, {
         method: 'DELETE',
         headers: {

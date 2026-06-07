@@ -416,8 +416,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only authors can delete their own submissions
-    if (session.role !== 'author') {
+    // Only authors and admins can delete submissions
+    if (session.role !== 'author' && session.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -436,15 +436,22 @@ export async function DELETE(request: Request) {
 
     const submission = submissionResult.rows[0];
 
-    // Ownership check: must match session email
-    if (submission.author_email.trim().toLowerCase() !== session.email.trim().toLowerCase()) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Ownership and status guard check
+    if (session.role === 'author') {
+      if (submission.author_email.trim().toLowerCase() !== session.email.trim().toLowerCase()) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
 
-    // Status guard: only 'submitted' or 'revision_requested' allowed
-    const allowedStatuses = ['submitted', 'revision_requested'];
-    if (!allowedStatuses.includes(submission.status)) {
-      return NextResponse.json({ error: 'Cannot delete submission in current status' }, { status: 400 });
+      // Status guard: only 'submitted', 'revision_requested', or 'draft' allowed for authors
+      const allowedStatuses = ['submitted', 'revision_requested', 'draft'];
+      if (!allowedStatuses.includes(submission.status)) {
+        return NextResponse.json({ error: 'Cannot delete submission in current status' }, { status: 400 });
+      }
+    } else if (session.role === 'admin') {
+      // Admins cannot delete published submissions
+      if (submission.status === 'published') {
+        return NextResponse.json({ error: 'Cannot delete a published submission' }, { status: 400 });
+      }
     }
 
     // Delete old blob file if it exists

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Send, Award, ShieldAlert, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { Users, Send, Award, ShieldAlert, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import type { Submission, Review, Issue } from '../page';
 
 interface SubmissionDetailProps {
@@ -32,6 +32,7 @@ interface SubmissionDetailProps {
   setPubPdfFile: (val: File | null) => void;
   handleApproveWithdrawal: (submissionId: number, editorNote?: string) => Promise<void>;
   handleRejectWithdrawal: (submissionId: number, editorNote?: string) => Promise<void>;
+  handleDeleteSubmission: (submissionId: number) => Promise<void>;
 }
 
 export default function SubmissionDetail({
@@ -64,6 +65,7 @@ export default function SubmissionDetail({
   setPubPdfFile,
   handleApproveWithdrawal,
   handleRejectWithdrawal,
+  handleDeleteSubmission,
 }: SubmissionDetailProps) {
   const [withdrawalNote, setWithdrawalNote] = useState('');
   const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
@@ -133,7 +135,18 @@ export default function SubmissionDetail({
             <span className="text-[9px] font-bold text-text-muted uppercase font-sans tracking-wide">Selected manuscript</span>
             <h2 className="font-serif font-bold text-base text-text-heading pt-1 leading-tight">{selectedSub.title}</h2>
           </div>
-          <button onClick={() => setSelectedSub(null)} className="text-text-muted hover:text-olive font-bold font-sans cursor-pointer text-xs uppercase tracking-wider text-[10px]">Close</button>
+          <div className="flex items-center gap-3 shrink-0">
+            {selectedSub.status !== 'published' && (
+              <button 
+                onClick={() => handleDeleteSubmission(selectedSub.id)} 
+                className="text-red-600 hover:text-red-800 font-bold font-sans cursor-pointer text-[10px] uppercase tracking-wider flex items-center gap-1 transition-colors"
+                title="Permanently Delete Submission"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            )}
+            <button onClick={() => setSelectedSub(null)} className="text-text-muted hover:text-olive font-bold font-sans cursor-pointer text-xs uppercase tracking-wider text-[10px]">Close</button>
+          </div>
         </div>
 
         <div className="space-y-3 leading-relaxed">

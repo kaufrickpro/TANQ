@@ -169,6 +169,7 @@ export default function EditorDashboard() {
     handleDeleteAccount,
     handleApproveWithdrawal,
     handleRejectWithdrawal,
+    handleDeleteSubmission,
   } = useEditorDashboard();
 
   if (!session) return null;
@@ -513,6 +514,7 @@ export default function EditorDashboard() {
               setPubPdfFile={setPubPdfFile}
               handleApproveWithdrawal={handleApproveWithdrawal}
               handleRejectWithdrawal={handleRejectWithdrawal}
+              handleDeleteSubmission={handleDeleteSubmission}
             />
           ) : (
             <div className="bg-bg-card border border-border-custom rounded-sm p-6 text-center space-y-3 text-text-muted py-16">

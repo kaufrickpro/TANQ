@@ -50,6 +50,7 @@ interface Step4Data {
 
 interface WizardProps {
   session: { name: string; email: string };
+  initialDraft?: any;
   onSuccess: () => void;
   onClose: () => void;
 }
@@ -222,27 +223,43 @@ function AccordionSection({ title, defaultOpen, children }: { title: string; def
 
 // ─── Main Wizard Component ────────────────────────────────────────────────────
 
-export default function SubmissionWizard({ session, onSuccess, onClose }: WizardProps) {
-  const [step, setStep] = useState(0);
-  const [draftId, setDraftId] = useState<number | null>(null);
+export default function SubmissionWizard({ session, initialDraft, onSuccess, onClose }: WizardProps) {
+  const [draftId, setDraftId] = useState<number | null>(initialDraft?.id || null);
+  const [step, setStep] = useState(() => {
+    if (initialDraft?.draft_step) {
+      return Math.max(0, Math.min(STEPS.length - 1, initialDraft.draft_step - 1));
+    }
+    return 0;
+  });
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   // Step 1
-  const [s1, setS1] = useState<Step1Data>({
-    submissionType: 'Research Article',
-    topic: '',
-    language: 'English',
-    title: '',
-    shortTitle: '',
-    keywords: [],
-    abstract: '',
-    declared: false,
-  });
+  const [s1, setS1] = useState<Step1Data>(() => ({
+    submissionType: initialDraft?.submission_type || 'Research Article',
+    topic: initialDraft?.topic || '',
+    language: initialDraft?.language || 'English',
+    title: initialDraft?.title || '',
+    shortTitle: initialDraft?.short_title || '',
+    keywords: initialDraft?.keywords
+      ? (typeof initialDraft.keywords === 'string'
+          ? initialDraft.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)
+          : initialDraft.keywords)
+      : [],
+    abstract: initialDraft?.abstract || '',
+    declared: !!initialDraft,
+  }));
 
   // Step 2
-  const [coAuthors, setCoAuthors] = useState<CoAuthor[]>([]);
+  const [coAuthors, setCoAuthors] = useState<CoAuthor[]>(() => {
+    if (initialDraft?.co_authors) {
+      return typeof initialDraft.co_authors === 'string'
+        ? JSON.parse(initialDraft.co_authors)
+        : initialDraft.co_authors;
+    }
+    return [];
+  });
   const [newCoName, setNewCoName] = useState('');
   const [newCoEmail, setNewCoEmail] = useState('');
 
@@ -258,16 +275,21 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
   });
 
   // Step 4
-  const [s4, setS4] = useState<Step4Data>({
-    projectNumber: '',
-    ethicsStatement: '',
-    supportingInstitution: '',
-    acknowledgements: '',
-  });
+  const [s4, setS4] = useState<Step4Data>(() => ({
+    projectNumber: initialDraft?.project_number || '',
+    ethicsStatement: initialDraft?.ethics_statement || '',
+    supportingInstitution: initialDraft?.supporting_institution || '',
+    acknowledgements: initialDraft?.acknowledgements || '',
+  }));
 
   // Step 5
-  const [noteToEditor, setNoteToEditor] = useState('');
-  const [checklist, setChecklist] = useState([false, false, false]);
+  const [noteToEditor, setNoteToEditor] = useState(initialDraft?.editor_note || '');
+  const [checklist, setChecklist] = useState(() => {
+    if (initialDraft?.checklist_confirmed) {
+      return [true, true, true];
+    }
+    return [false, false, false];
+  });
 
   // ── Validation ────────────────────────────────────────────────────────────
 
@@ -399,6 +421,16 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
       if (!res.ok) {
         const d = await safeJson(res);
         throw new Error(d.error || 'Failed to submit');
+      }
+
+      if (draftId) {
+        try {
+          await fetch(`/api/submissions?submission_id=${draftId}`, {
+            method: 'DELETE',
+          });
+        } catch (delErr) {
+          console.error('Failed to delete draft after submit:', delErr);
+        }
       }
 
       onSuccess();
@@ -697,14 +729,15 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
             </div>
           )}
 
-          {/* Error display */}
-          {error && (
-            <div className="flex items-start gap-2 bg-white border border-border-custom rounded-sm p-3 text-xs font-sans">
-              <AlertCircle size={15} className="shrink-0 mt-0.5 text-olive" />
-              <span className="font-bold uppercase tracking-wider text-text-heading">{error}</span>
-            </div>
-          )}
         </div>
+
+        {/* Error display - placed outside scrollable body to be pinned above the footer */}
+        {error && (
+          <div className="shrink-0 mx-6 mb-4 bg-rose-50 border border-rose-200 rounded-sm p-3.5 flex items-start gap-2.5 text-xs font-sans">
+            <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-600" />
+            <span className="font-bold uppercase tracking-wider text-rose-800">{error}</span>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="shrink-0 px-6 py-4 bg-bg-card border-t border-border-custom flex items-center justify-between gap-3">
