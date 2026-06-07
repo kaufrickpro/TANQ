@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'author' | 'reviewer' | 'admin'>('author');
+  const [role, setRole] = useState<'author' | 'reviewer' | 'secretary' | 'editor' | 'admin'>('author');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDemo, setShowDemo] = useState(false);
@@ -36,8 +36,10 @@ export default function LoginPage() {
   const isPasswordValid = hasMinLength && hasUppercase && hasLowercase && hasNumber;
 
   const redirectToDashboard = (userRole: string) => {
-    if (userRole === 'admin') {
+    if (userRole === 'admin' || userRole === 'editor') {
       router.push('/dashboard/editor');
+    } else if (userRole === 'secretary') {
+      router.push('/dashboard/secretary');
     } else if (userRole === 'reviewer') {
       router.push('/dashboard/reviewer');
     } else {
@@ -404,7 +406,7 @@ export default function LoginPage() {
                     <div className="bg-sand/15 border border-olive/30 text-olive p-3 rounded-sm flex items-center gap-2 mb-2 font-sans">
                       <ShieldCheck size={16} className="shrink-0 text-olive" />
                       <span className="font-bold uppercase tracking-wider text-[10px]">
-                        Verified invitation for: <strong className="text-text-primary uppercase">{role === 'admin' ? 'Editor / Administrator' : 'Peer Reviewer'}</strong>
+                        Verified invitation for: <strong className="text-text-primary uppercase">{role.replace('_', ' ')}</strong>
                       </span>
                     </div>
                   )}
@@ -437,7 +439,9 @@ export default function LoginPage() {
                       >
                         <option value="author">Author</option>
                         <option value="reviewer">Peer Reviewer</option>
-                        <option value="admin">Editor / Administrator</option>
+                        <option value="secretary">Secretary</option>
+                        <option value="editor">Editor</option>
+                        <option value="admin">Administrator</option>
                       </select>
                     </div>
                   )}

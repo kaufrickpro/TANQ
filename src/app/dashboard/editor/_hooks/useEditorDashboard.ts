@@ -50,7 +50,7 @@ export function useEditorDashboard() {
   // Invitation management state
   const [invites, setInvites] = useState<any[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'reviewer' | 'admin'>('reviewer');
+  const [inviteRole, setInviteRole] = useState<'reviewer' | 'secretary' | 'editor' | 'admin'>('reviewer');
   const [invitingUser, setInvitingUser] = useState(false);
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [newlyCreatedInviteUrl, setNewlyCreatedInviteUrl] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export function useEditorDashboard() {
           return;
         }
         const sessionUser = await safeJson(res);
-        if (sessionUser.role !== 'admin') {
+        if (!['admin', 'editor'].includes(sessionUser.role)) {
           router.push('/dashboard/login');
           return;
         }
@@ -235,8 +235,10 @@ export function useEditorDashboard() {
   useEffect(() => {
     if (session) {
       fetchData();
-      fetchInvites();
-      fetchAccounts();
+      if (session.role === 'admin') {
+        fetchInvites();
+        fetchAccounts();
+      }
     }
   }, [session, fetchData, fetchInvites, fetchAccounts]);
 
@@ -357,10 +359,16 @@ export function useEditorDashboard() {
 
   const fetchReviews = useCallback(async (subId: number) => {
     try {
-      const res = await fetch(`/api/reviews?submission_id=${subId}`);
+      const res = await fetch(`/api/case-files/${subId}/reviews`);
       if (res.ok) {
         const data = await safeJson(res);
-        setReviews(data);
+        setReviews((data.reports || []).map((report: any) => ({
+          ...report,
+          reviewer_name: report.reviewer_name,
+          reviewer_email: report.reviewer_email,
+          comments: report.comments_to_author,
+          date_reviewed: report.submitted_at,
+        })));
       }
     } catch (e) {
       console.error('Error fetching reviews:', e);
@@ -383,12 +391,18 @@ export function useEditorDashboard() {
     setSuccess('');
 
     try {
-      const res = await fetch('/api/reviews', {
+      const caseRes = await fetch(`/api/case-files/${selectedSub.id}`);
+      const caseData = await safeJson(caseRes);
+      const activeRound = caseData.rounds?.find((round: any) => round.status === 'open');
+      if (!activeRound) {
+        throw new Error('Open a review round for a specific manuscript version before assigning reviewers.');
+      }
+      const res = await fetch(`/api/case-files/${selectedSub.id}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'assign',
-          submission_id: selectedSub.id,
+          review_round_id: activeRound.id,
           reviewer_name: revName,
           reviewer_email: revEmail
         })
@@ -398,7 +412,7 @@ export function useEditorDashboard() {
         throw new Error('Failed to assign reviewer');
       }
 
-      setSuccess(`Reviewer ${revName} assigned successfully! The manuscript status is updated to 'In Review'.`);
+      setSuccess(`Reviewer ${revName} assigned to review round ${activeRound.round_number}.`);
       setRevName('');
       setRevEmail('');
       

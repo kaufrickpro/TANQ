@@ -138,12 +138,12 @@ export async function POST(
     const result = await db`
       INSERT INTO submissions (
         title, abstract, keywords, author_name, author_email,
-        file_path, status, date_submitted,
+        file_path, status, current_stage, date_submitted,
         submission_type, topic, language, short_title,
         co_authors, draft_step
       ) VALUES (
         ${title}, ${abstract}, ${keywords}, ${session.name}, ${session.email},
-        '', 'draft', '',
+        '', 'draft', 'draft', '',
         ${submission_type}, ${topic}, ${language}, ${short_title},
         '[]', 1
       )

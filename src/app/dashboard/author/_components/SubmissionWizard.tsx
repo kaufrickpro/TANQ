@@ -408,10 +408,13 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
       formData.append('acknowledgements', s4.acknowledgements);
       formData.append('editor_note', noteToEditor);
       formData.append('checklist_confirmed', 'true');
+      if (draftId) formData.append('draft_id', String(draftId));
       formData.append('file', files.fullText.file, files.fullText.name);
-      // Append other files as additional named fields (stored as files_meta if needed)
       if (files.titlePage) formData.append('file_title_page', files.titlePage.file, files.titlePage.name);
       if (files.supplementary) formData.append('file_supplementary', files.supplementary.file, files.supplementary.name);
+      if (files.copyrightForm) formData.append('file_copyright_form', files.copyrightForm.file, files.copyrightForm.name);
+      if (files.similarityReport) formData.append('file_similarity_report', files.similarityReport.file, files.similarityReport.name);
+      if (files.ethicsApproval) formData.append('file_ethics_approval', files.ethicsApproval.file, files.ethicsApproval.name);
 
       const res = await fetch('/api/submissions', {
         method: 'POST',
@@ -421,16 +424,6 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
       if (!res.ok) {
         const d = await safeJson(res);
         throw new Error(d.error || 'Failed to submit');
-      }
-
-      if (draftId) {
-        try {
-          await fetch(`/api/submissions?submission_id=${draftId}`, {
-            method: 'DELETE',
-          });
-        } catch (delErr) {
-          console.error('Failed to delete draft after submit:', delErr);
-        }
       }
 
       onSuccess();

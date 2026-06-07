@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Email and role are required' }, { status: 400 });
       }
 
-      if (!['admin', 'reviewer'].includes(role)) {
+      if (!['admin', 'editor', 'secretary', 'reviewer'].includes(role)) {
         return NextResponse.json({ error: 'Invalid role for invitation' }, { status: 400 });
       }
 

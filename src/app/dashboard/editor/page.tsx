@@ -200,28 +200,32 @@ export default function EditorDashboard() {
             >
               Issues & Volumes
             </button>
-            <button
-              onClick={() => {
-                setEditorView('invites');
-                fetchInvites();
-              }}
-              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
-                editorView === 'invites' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
-              }`}
-            >
-              Invite Team
-            </button>
-            <button
-              onClick={() => {
-                setEditorView('accounts');
-                fetchAccounts();
-              }}
-              className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
-                editorView === 'accounts' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
-              }`}
-            >
-              Accounts
-            </button>
+            {session.role === 'admin' && (
+              <>
+                <button
+                  onClick={() => {
+                    setEditorView('invites');
+                    fetchInvites();
+                  }}
+                  className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
+                    editorView === 'invites' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
+                  }`}
+                >
+                  Invite Team
+                </button>
+                <button
+                  onClick={() => {
+                    setEditorView('accounts');
+                    fetchAccounts();
+                  }}
+                  className={`text-lg font-serif font-bold uppercase tracking-wide cursor-pointer transition-colors pb-3 border-b-2 ${
+                    editorView === 'accounts' ? 'text-olive border-olive' : 'text-text-muted border-transparent hover:text-text-heading'
+                  }`}
+                >
+                  Accounts
+                </button>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-2 pb-3 font-sans text-[11px] font-bold uppercase tracking-wider">
@@ -447,7 +451,7 @@ export default function EditorDashboard() {
           </div>
         )}
 
-        {editorView === 'invites' && (
+        {session.role === 'admin' && editorView === 'invites' && (
           <InviteTeamSection
             invites={invites}
             inviteEmail={inviteEmail}
@@ -463,7 +467,7 @@ export default function EditorDashboard() {
           />
         )}
 
-        {editorView === 'accounts' && (
+        {session.role === 'admin' && editorView === 'accounts' && (
           <AccountManagementSection
             accounts={accounts}
             loadingAccounts={loadingAccounts}

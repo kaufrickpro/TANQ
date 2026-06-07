@@ -8,7 +8,7 @@ export interface ManagedAccount {
   username: string;
   name: string;
   email: string;
-  role: 'admin' | 'reviewer' | 'author';
+  role: 'admin' | 'editor' | 'secretary' | 'reviewer' | 'author';
   isVerified: boolean;
   isDisabled: boolean;
   submissionCount: number;
@@ -38,7 +38,10 @@ export async function GET() {
         u.is_verified, 
         u.is_disabled,
         (SELECT COUNT(*) FROM submissions s WHERE LOWER(TRIM(s.author_email)) = LOWER(TRIM(u.email))) as submission_count,
-        (SELECT COUNT(*) FROM reviews r WHERE LOWER(TRIM(r.reviewer_email)) = LOWER(TRIM(u.email))) as review_count
+        (
+          (SELECT COUNT(*) FROM reviews r WHERE LOWER(TRIM(r.reviewer_email)) = LOWER(TRIM(u.email))) +
+          (SELECT COUNT(*) FROM review_assignments ra WHERE LOWER(TRIM(ra.reviewer_email)) = LOWER(TRIM(u.email)))
+        ) as review_count
       FROM users u
       ORDER BY u.id ASC
     `;
@@ -53,7 +56,7 @@ export async function GET() {
       const reviewCount = parseInt(row.review_count, 10);
       const isDisabled = !!row.is_disabled;
       const isVerified = !!row.is_verified;
-      const role = row.role as 'admin' | 'reviewer' | 'author';
+      const role = row.role as 'admin' | 'editor' | 'secretary' | 'reviewer' | 'author';
 
       const isLastEnabledAdmin = role === 'admin' && !isDisabled && totalEnabledAdmins <= 1;
 
@@ -201,9 +204,11 @@ export async function POST(request: Request) {
           WHERE LOWER(TRIM(author_email)) = LOWER(TRIM(${targetUser.email}))
         `;
         const reviewCountResult = await client.sql`
-          SELECT COUNT(*) as count 
-          FROM reviews 
-          WHERE LOWER(TRIM(reviewer_email)) = LOWER(TRIM(${targetUser.email}))
+          SELECT
+            (
+              (SELECT COUNT(*) FROM reviews WHERE LOWER(TRIM(reviewer_email)) = LOWER(TRIM(${targetUser.email}))) +
+              (SELECT COUNT(*) FROM review_assignments WHERE LOWER(TRIM(reviewer_email)) = LOWER(TRIM(${targetUser.email})))
+            ) as count
         `;
         const subCount = parseInt(subCountResult.rows[0].count, 10);
         const reviewCount = parseInt(reviewCountResult.rows[0].count, 10);

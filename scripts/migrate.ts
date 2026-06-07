@@ -55,11 +55,18 @@ async function migrate() {
       password_hash TEXT NOT NULL,
       name          TEXT NOT NULL,
       email         TEXT NOT NULL,
-      role          TEXT NOT NULL CHECK(role IN ('admin', 'reviewer', 'author')),
+      role          TEXT NOT NULL CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer', 'author')),
       is_verified   BOOLEAN DEFAULT FALSE,
       verification_otp TEXT,
       otp_expires_at  TIMESTAMP
     );
+  `;
+
+  console.log('Updating users role constraint for separated editorial roles...');
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`;
+  await sql`
+    ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer', 'author'));
   `;
 
   console.log('Adding columns to users table...');
@@ -80,11 +87,17 @@ async function migrate() {
     CREATE TABLE IF NOT EXISTS invitations (
       id         SERIAL PRIMARY KEY,
       email      TEXT NOT NULL,
-      role       TEXT NOT NULL CHECK(role IN ('admin', 'reviewer')),
+      role       TEXT NOT NULL CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer')),
       token      TEXT,
       is_used    BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `;
+
+  await sql`ALTER TABLE invitations DROP CONSTRAINT IF EXISTS invitations_role_check;`;
+  await sql`
+    ALTER TABLE invitations ADD CONSTRAINT invitations_role_check
+      CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer'));
   `;
 
   console.log('Adding columns to invitations table...');
@@ -215,6 +228,7 @@ async function migrate() {
       date_published TEXT NOT NULL
     );
   `;
+  await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS source_document_version_id BIGINT;`;
 
   console.log('Creating table if not exists: submissions');
   await sql`
@@ -233,13 +247,17 @@ async function migrate() {
   `;
 
   // Drop the old status CHECK constraint if it exists (so we can add the new one)
-  console.log('Updating submissions status CHECK constraint to include draft and withdrawn...');
+  console.log('Updating submissions status CHECK constraint for case-file workflow...');
   await sql`
     ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_status_check;
   `;
   await sql`
     ALTER TABLE submissions ADD CONSTRAINT submissions_status_check
-      CHECK(status IN ('draft','submitted','in_review','revision_requested','accepted','rejected','published','withdrawn'));
+      CHECK(status IN (
+        'draft','submitted','secretary_check','editor_screening','in_review','under_review',
+        'editor_decision','revision_requested','author_revision','accepted','production',
+        'rejected','published','withdrawn'
+      ));
   `;
 
   // Make file_path and date_submitted nullable-compatible with defaults for draft rows
@@ -265,6 +283,45 @@ async function migrate() {
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS editor_note TEXT;`;
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS checklist_confirmed BOOLEAN DEFAULT FALSE;`;
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS withdrawal_status TEXT DEFAULT NULL;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS public_id UUID DEFAULT gen_random_uuid();`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_stage TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_round_id BIGINT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS lock_version INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS closed_reason TEXT;`;
+  await sql`UPDATE submissions SET current_stage = status WHERE current_stage IS NULL;`;
+  await sql`UPDATE submissions SET public_id = gen_random_uuid() WHERE public_id IS NULL;`;
+  await sql`ALTER TABLE submissions ALTER COLUMN public_id SET NOT NULL;`;
+  await sql`ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_current_stage_check;`;
+  await sql`
+    ALTER TABLE submissions ADD CONSTRAINT submissions_current_stage_check
+      CHECK(current_stage IN (
+        'draft','submitted','secretary_check','editor_screening','in_review','under_review',
+        'editor_decision','revision_requested','author_revision','accepted','production',
+        'rejected','published','withdrawn'
+      ));
+  `;
+  await sql`
+    UPDATE submissions
+    SET submitted_at = CASE
+      WHEN date_submitted ~ '^\d{4}-\d{2}-\d{2}$' THEN date_submitted::date::timestamptz
+      ELSE NOW()
+    END
+    WHERE submitted_at IS NULL AND status != 'draft';
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id
+      ON submissions(public_id);
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_submissions_author_email_lower
+      ON submissions(LOWER(TRIM(author_email)));
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_submissions_current_stage
+      ON submissions(current_stage, id DESC);
+  `;
 
   console.log('Creating table if not exists: withdrawal_requests');
   await sql`
@@ -295,6 +352,501 @@ async function migrate() {
       date_reviewed   TEXT NOT NULL
     );
   `;
+
+  // ── Immutable manuscript case files ──────────────────────────────────────
+
+  console.log('Creating immutable manuscript case-file tables...');
+  await sql`
+    CREATE TABLE IF NOT EXISTS submission_documents (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      kind                  TEXT NOT NULL,
+      label                 TEXT NOT NULL,
+      visibility            TEXT NOT NULL DEFAULT 'editorial'
+                            CHECK(visibility IN ('author','reviewer','editorial','evidence')),
+      created_by_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name       TEXT NOT NULL,
+      created_by_role       TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(submission_id, kind)
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS document_versions (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      document_id           BIGINT NOT NULL REFERENCES submission_documents(id) ON DELETE RESTRICT,
+      version_number        INTEGER NOT NULL CHECK(version_number > 0),
+      blob_url              TEXT NOT NULL UNIQUE,
+      blob_pathname         TEXT NOT NULL UNIQUE,
+      original_filename     TEXT NOT NULL,
+      content_type          TEXT NOT NULL,
+      size_bytes            BIGINT NOT NULL CHECK(size_bytes >= 0),
+      sha256                TEXT,
+      etag                  TEXT,
+      uploaded_by_user_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      uploaded_by_name      TEXT NOT NULL,
+      uploaded_by_role      TEXT NOT NULL,
+      upload_note           TEXT,
+      review_round_id       BIGINT,
+      legacy_import         BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(document_id, version_number),
+      CHECK(sha256 IS NULL OR sha256 ~ '^[a-f0-9]{64}$')
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_rounds (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      round_number          INTEGER NOT NULL CHECK(round_number > 0),
+      manuscript_version_id BIGINT NOT NULL REFERENCES document_versions(id) ON DELETE RESTRICT,
+      status                TEXT NOT NULL DEFAULT 'open'
+                            CHECK(status IN ('open','awaiting_editor','closed','cancelled')),
+      opened_by_user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      opened_by_name        TEXT NOT NULL,
+      opened_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      closed_at             TIMESTAMPTZ,
+      UNIQUE(submission_id, round_number)
+    );
+  `;
+
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'document_versions_review_round_id_fkey'
+      ) THEN
+        ALTER TABLE document_versions
+          ADD CONSTRAINT document_versions_review_round_id_fkey
+          FOREIGN KEY (review_round_id) REFERENCES review_rounds(id) ON DELETE RESTRICT;
+      END IF;
+    END $$;
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'articles_source_document_version_id_fkey'
+      ) THEN
+        ALTER TABLE articles
+          ADD CONSTRAINT articles_source_document_version_id_fkey
+          FOREIGN KEY (source_document_version_id) REFERENCES document_versions(id) ON DELETE RESTRICT;
+      END IF;
+    END $$;
+  `;
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'submissions_current_round_id_fkey'
+      ) THEN
+        ALTER TABLE submissions
+          ADD CONSTRAINT submissions_current_round_id_fkey
+          FOREIGN KEY (current_round_id) REFERENCES review_rounds(id) ON DELETE RESTRICT;
+      END IF;
+    END $$;
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_assignments (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      review_round_id       BIGINT NOT NULL REFERENCES review_rounds(id) ON DELETE RESTRICT,
+      reviewer_user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewer_name         TEXT NOT NULL,
+      reviewer_email        TEXT NOT NULL,
+      status                TEXT NOT NULL DEFAULT 'assigned'
+                            CHECK(status IN ('assigned','submitted','cancelled')),
+      assigned_by_user_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_by_name      TEXT NOT NULL,
+      assigned_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      submitted_at          TIMESTAMPTZ,
+      UNIQUE(review_round_id, reviewer_email)
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_reports (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      review_round_id       BIGINT NOT NULL REFERENCES review_rounds(id) ON DELETE RESTRICT,
+      assignment_id         BIGINT NOT NULL UNIQUE REFERENCES review_assignments(id) ON DELETE RESTRICT,
+      recommendation        TEXT NOT NULL
+                            CHECK(recommendation IN ('accept','minor_revision','major_revision','reject')),
+      score                 INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
+      comments_to_author    TEXT NOT NULL,
+      confidential_comments TEXT,
+      submitted_by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_by_name     TEXT NOT NULL,
+      submitted_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_addenda (
+      id                    BIGSERIAL PRIMARY KEY,
+      report_id             BIGINT NOT NULL REFERENCES review_reports(id) ON DELETE RESTRICT,
+      body                  TEXT NOT NULL,
+      created_by_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name       TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS review_report_releases (
+      id                    BIGSERIAL PRIMARY KEY,
+      report_id             BIGINT NOT NULL UNIQUE REFERENCES review_reports(id) ON DELETE RESTRICT,
+      released_by_user_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      released_by_name      TEXT NOT NULL,
+      released_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS editorial_decisions (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      review_round_id       BIGINT REFERENCES review_rounds(id) ON DELETE RESTRICT,
+      decision              TEXT NOT NULL
+                            CHECK(decision IN ('technical_revision','minor_revision','major_revision','accept','reject','withdraw')),
+      letter                TEXT NOT NULL,
+      decided_by_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      decided_by_name       TEXT NOT NULL,
+      decided_by_role       TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS submission_events (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      sequence_number       INTEGER NOT NULL CHECK(sequence_number > 0),
+      event_type            TEXT NOT NULL,
+      actor_user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_name            TEXT NOT NULL,
+      actor_role            TEXT NOT NULL,
+      from_stage            TEXT,
+      to_stage              TEXT,
+      summary               TEXT NOT NULL,
+      payload               JSONB NOT NULL DEFAULT '{}',
+      previous_hash         TEXT,
+      event_hash            TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(submission_id, sequence_number),
+      UNIQUE(submission_id, event_hash)
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS evidence_exports (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      status                TEXT NOT NULL DEFAULT 'pending'
+                            CHECK(status IN ('pending','processing','ready','failed','expired')),
+      requested_by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      requested_by_name     TEXT NOT NULL,
+      include_identities    BOOLEAN NOT NULL DEFAULT FALSE,
+      blob_url              TEXT,
+      blob_pathname         TEXT,
+      manifest_sha256       TEXT,
+      error_message         TEXT,
+      requested_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at          TIMESTAMPTZ,
+      expires_at            TIMESTAMPTZ
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS evidence_shares (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      token_hash            TEXT NOT NULL UNIQUE,
+      auditor_email         TEXT NOT NULL,
+      include_identities    BOOLEAN NOT NULL DEFAULT FALSE,
+      expires_at            TIMESTAMPTZ NOT NULL,
+      revoked_at            TIMESTAMPTZ,
+      created_by_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name       TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS evidence_share_otps (
+      id                    BIGSERIAL PRIMARY KEY,
+      share_id              BIGINT NOT NULL REFERENCES evidence_shares(id) ON DELETE RESTRICT,
+      otp_hash              TEXT NOT NULL,
+      expires_at            TIMESTAMPTZ NOT NULL,
+      consumed_at           TIMESTAMPTZ,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS evidence_share_accesses (
+      id                    BIGSERIAL PRIMARY KEY,
+      share_id              BIGINT NOT NULL REFERENCES evidence_shares(id) ON DELETE RESTRICT,
+      action                TEXT NOT NULL CHECK(action IN ('otp_requested','viewed','downloaded','denied')),
+      ip_address            TEXT,
+      user_agent            TEXT,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notification_outbox (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         INTEGER REFERENCES submissions(id) ON DELETE RESTRICT,
+      recipient_email       TEXT NOT NULL,
+      template              TEXT NOT NULL,
+      payload               JSONB NOT NULL DEFAULT '{}',
+      status                TEXT NOT NULL DEFAULT 'pending'
+                            CHECK(status IN ('pending','sent','failed')),
+      attempts              INTEGER NOT NULL DEFAULT 0,
+      last_error            TEXT,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      sent_at               TIMESTAMPTZ
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS integrity_checks (
+      id                    BIGSERIAL PRIMARY KEY,
+      document_version_id   BIGINT NOT NULL REFERENCES document_versions(id) ON DELETE RESTRICT,
+      status                TEXT NOT NULL CHECK(status IN ('ok','missing','mismatch','error')),
+      observed_sha256       TEXT,
+      details               TEXT,
+      checked_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  console.log('Creating case-file indexes...');
+  await sql`CREATE INDEX IF NOT EXISTS idx_documents_submission ON submission_documents(submission_id, kind);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_documents_created_by ON submission_documents(created_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_versions_submission_created ON document_versions(submission_id, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_versions_document_number ON document_versions(document_id, version_number DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_versions_review_round ON document_versions(review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_versions_uploaded_by ON document_versions(uploaded_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_rounds_submission ON review_rounds(submission_id, round_number DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_rounds_manuscript_version ON review_rounds(manuscript_version_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_rounds_opened_by ON review_rounds(opened_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_reviewer_email ON review_assignments(LOWER(TRIM(reviewer_email)), status);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_submission ON review_assignments(submission_id, review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_reviewer_user ON review_assignments(reviewer_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_assigned_by ON review_assignments(assigned_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_reports_submission ON review_reports(submission_id, review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_reports_review_round ON review_reports(review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_reports_submitted_by ON review_reports(submitted_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_addenda_report ON review_addenda(report_id, created_at);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_addenda_created_by ON review_addenda(created_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_releases_released_by ON review_report_releases(released_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_decisions_submission ON editorial_decisions(submission_id, created_at);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_decisions_review_round ON editorial_decisions(review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_decisions_decided_by ON editorial_decisions(decided_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_events_submission_sequence ON submission_events(submission_id, sequence_number);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_events_actor_user ON submission_events(actor_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_reviews_submission_id ON reviews(submission_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_reviews_reviewer_email ON reviews(LOWER(TRIM(reviewer_email)));`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_withdrawal_requests_submission ON withdrawal_requests(submission_id, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_exports_submission ON evidence_exports(submission_id, requested_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_exports_requested_by ON evidence_exports(requested_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_shares_submission ON evidence_shares(submission_id, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_shares_created_by ON evidence_shares(created_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_share_otps_share ON evidence_share_otps(share_id, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_evidence_accesses_share ON evidence_share_accesses(share_id, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_notification_outbox_submission ON notification_outbox(submission_id, status);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_integrity_checks_version ON integrity_checks(document_version_id, checked_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_articles_issue ON articles(issue_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_articles_source_version ON articles(source_document_version_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_submissions_current_round ON submissions(current_round_id);`;
+
+  console.log('Backfilling legacy manuscript pointers into case files...');
+  await sql`
+    INSERT INTO submission_documents (
+      submission_id, kind, label, visibility, created_by_name, created_by_role, created_at
+    )
+    SELECT s.id, 'manuscript', 'Blinded Manuscript', 'reviewer', s.author_name, 'author',
+           COALESCE(s.submitted_at, NOW())
+    FROM submissions s
+    WHERE s.file_path <> ''
+    ON CONFLICT (submission_id, kind) DO NOTHING;
+  `;
+  await sql`
+    INSERT INTO document_versions (
+      submission_id, document_id, version_number, blob_url, blob_pathname,
+      original_filename, content_type, size_bytes, uploaded_by_name, uploaded_by_role,
+      upload_note, legacy_import, created_at
+    )
+    SELECT s.id, d.id, 1, s.file_path,
+           regexp_replace(s.file_path, '^https?://[^/]+/', ''),
+           COALESCE(NULLIF(regexp_replace(s.file_path, '^.*/', ''), ''), 'legacy-manuscript'),
+           'application/octet-stream', 0, s.author_name, 'author',
+           'Imported from legacy submissions.file_path; checksum pending verification.',
+           TRUE, COALESCE(s.submitted_at, NOW())
+    FROM submissions s
+    JOIN submission_documents d ON d.submission_id = s.id AND d.kind = 'manuscript'
+    WHERE s.file_path <> ''
+      AND NOT EXISTS (
+        SELECT 1 FROM document_versions v WHERE v.document_id = d.id
+      );
+  `;
+
+  console.log('Backfilling legacy reviews into pinned review rounds...');
+  await sql`
+    INSERT INTO review_rounds (
+      submission_id, round_number, manuscript_version_id, status,
+      opened_by_name, opened_at
+    )
+    SELECT s.id, 1, latest_version.id,
+           CASE
+             WHEN BOOL_AND(NULLIF(TRIM(r.date_reviewed), '') IS NOT NULL) THEN 'awaiting_editor'
+             ELSE 'open'
+           END,
+           'TANQ Migration', COALESCE(s.submitted_at, NOW())
+    FROM submissions s
+    JOIN reviews r ON r.submission_id = s.id
+    JOIN LATERAL (
+      SELECT v.id
+      FROM document_versions v
+      JOIN submission_documents d ON d.id = v.document_id
+      WHERE v.submission_id = s.id AND d.kind = 'manuscript'
+      ORDER BY v.version_number DESC
+      LIMIT 1
+    ) latest_version ON TRUE
+    WHERE NOT EXISTS (
+      SELECT 1 FROM review_rounds rr WHERE rr.submission_id = s.id
+    )
+    GROUP BY s.id, latest_version.id, s.submitted_at;
+  `;
+  await sql`
+    UPDATE submissions s
+    SET current_round_id = rr.id
+    FROM review_rounds rr
+    WHERE rr.submission_id = s.id
+      AND rr.round_number = 1
+      AND s.current_round_id IS NULL
+      AND EXISTS (SELECT 1 FROM reviews r WHERE r.submission_id = s.id);
+  `;
+  await sql`
+    INSERT INTO review_assignments (
+      submission_id, review_round_id, reviewer_name, reviewer_email,
+      status, assigned_by_name, assigned_at, submitted_at
+    )
+    SELECT DISTINCT ON (r.submission_id, LOWER(TRIM(r.reviewer_email)))
+           r.submission_id, rr.id, r.reviewer_name, LOWER(TRIM(r.reviewer_email)),
+           CASE WHEN NULLIF(TRIM(r.date_reviewed), '') IS NULL THEN 'assigned' ELSE 'submitted' END,
+           'TANQ Migration', COALESCE(s.submitted_at, NOW()),
+           CASE
+             WHEN r.date_reviewed ~ '^\d{4}-\d{2}-\d{2}$' THEN r.date_reviewed::date::timestamptz
+             WHEN NULLIF(TRIM(r.date_reviewed), '') IS NOT NULL THEN NOW()
+             ELSE NULL
+           END
+    FROM reviews r
+    JOIN submissions s ON s.id = r.submission_id
+    JOIN review_rounds rr ON rr.submission_id = r.submission_id AND rr.round_number = 1
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM review_assignments ra
+      WHERE ra.review_round_id = rr.id
+        AND LOWER(TRIM(ra.reviewer_email)) = LOWER(TRIM(r.reviewer_email))
+    )
+    ORDER BY r.submission_id, LOWER(TRIM(r.reviewer_email)), r.id DESC;
+  `;
+  await sql`
+    INSERT INTO review_reports (
+      submission_id, review_round_id, assignment_id, recommendation, score,
+      comments_to_author, submitted_by_name, submitted_at
+    )
+    SELECT DISTINCT ON (ra.id)
+           ra.submission_id, ra.review_round_id, ra.id, r.recommendation, r.score,
+           r.comments, r.reviewer_name,
+           CASE
+             WHEN r.date_reviewed ~ '^\d{4}-\d{2}-\d{2}$' THEN r.date_reviewed::date::timestamptz
+             ELSE NOW()
+           END
+    FROM review_assignments ra
+    JOIN reviews r
+      ON r.submission_id = ra.submission_id
+     AND LOWER(TRIM(r.reviewer_email)) = LOWER(TRIM(ra.reviewer_email))
+    WHERE NULLIF(TRIM(r.date_reviewed), '') IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM review_reports rp WHERE rp.assignment_id = ra.id
+      )
+    ORDER BY ra.id, r.id DESC;
+  `;
+
+  console.log('Creating initial audit events for legacy case files...');
+  await sql`
+    INSERT INTO submission_events (
+      submission_id, sequence_number, event_type, actor_name, actor_role,
+      to_stage, summary, payload, previous_hash, event_hash, created_at
+    )
+    SELECT s.id, 1, 'legacy_history_imported', 'TANQ Migration', 'system',
+           s.current_stage,
+           'Legacy submission imported; activity before this event may be incomplete.',
+           jsonb_build_object('legacy_file_path_present', s.file_path <> ''),
+           NULL,
+           encode(sha256(
+             convert_to(
+               s.id::text || '|1|legacy_history_imported|' ||
+               COALESCE(s.current_stage, '') || '|TANQ Migration',
+               'UTF8'
+             )
+           ), 'hex'),
+           COALESCE(s.submitted_at, NOW())
+    FROM submissions s
+    WHERE NOT EXISTS (
+      SELECT 1 FROM submission_events e WHERE e.submission_id = s.id
+    );
+  `;
+
+  console.log('Protecting immutable evidence tables from update/delete...');
+  await sql`
+    CREATE OR REPLACE FUNCTION prevent_immutable_case_file_mutation()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF TG_TABLE_NAME = 'document_versions' AND TG_OP = 'UPDATE'
+      THEN
+        IF OLD.legacy_import = TRUE
+           AND OLD.sha256 IS NULL
+           AND NEW.sha256 IS NOT NULL
+           AND (
+             to_jsonb(NEW) - ARRAY['sha256','size_bytes','etag','content_type','blob_pathname']::text[]
+           ) = (
+             to_jsonb(OLD) - ARRAY['sha256','size_bytes','etag','content_type','blob_pathname']::text[]
+           )
+        THEN
+          RETURN NEW;
+        END IF;
+      END IF;
+      RAISE EXCEPTION 'immutable case-file records cannot be updated or deleted';
+    END;
+    $$;
+  `;
+  for (const table of [
+    'document_versions',
+    'review_reports',
+    'review_addenda',
+    'review_report_releases',
+    'editorial_decisions',
+    'submission_events',
+    'evidence_share_accesses',
+    'integrity_checks',
+  ]) {
+    await sql.query(`DROP TRIGGER IF EXISTS protect_immutable_rows ON ${table}`);
+    await sql.query(`
+      CREATE TRIGGER protect_immutable_rows
+      BEFORE UPDATE OR DELETE ON ${table}
+      FOR EACH ROW EXECUTE FUNCTION prevent_immutable_case_file_mutation()
+    `);
+  }
 
   console.log('\n✅ Migration complete! Database tables verified and updated.\n');
   process.exit(0);

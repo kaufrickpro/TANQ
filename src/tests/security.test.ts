@@ -33,6 +33,7 @@ import { createSession, getSessionUser, revokeSession } from '@/lib/session';
 import { hashPassword } from '@/lib/password';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { checkLoginRateLimit, recordLoginFailure, checkOtpVerificationRateLimit, recordOtpFailure } from '@/lib/rateLimit';
+import { resetTestDatabase } from './helpers/db';
 
 // Mock next/headers cookies
 vi.mock('next/headers', () => ({
@@ -53,7 +54,11 @@ vi.mock('next/headers', () => ({
 // Mock Vercel Blob SDK
 vi.mock('@vercel/blob', () => ({
   put: vi.fn(async (path, data, options) => {
-    return { url: `https://mock.blob.vercel.storage/manuscripts/${path}` };
+    return {
+      url: `https://mock.blob.vercel.storage/manuscripts/${path}`,
+      pathname: `manuscripts/${path}`,
+      etag: 'mock-etag',
+    };
   }),
   get: vi.fn(async (url, options) => {
     return {
@@ -87,14 +92,7 @@ describe('TANQ Security Hardening Tests', () => {
   });
 
   beforeEach(async () => {
-    // Clear dynamic tables before each test
-    await db`DELETE FROM auth_sessions`;
-    await db`DELETE FROM auth_rate_limits`;
-    await db`DELETE FROM reviews`;
-    await db`DELETE FROM submissions`;
-    await db`DELETE FROM invitations`;
-    await db`DELETE FROM users WHERE username != 'admin'`; // Keep potential seed admin if needed, or clear all
-    await db`DELETE FROM users`;
+    await resetTestDatabase();
     globalThis.testSessionToken = null;
   });
 

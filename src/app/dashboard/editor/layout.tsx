@@ -28,7 +28,7 @@ export default async function EditorLayout({ children }: { children: React.React
     !session.is_verified ||
     session.revoked_at ||
     new Date(session.expires_at) < new Date() ||
-    session.role !== 'admin'
+    !['admin', 'editor'].includes(session.role)
   ) {
     redirect('/dashboard/login');
   }

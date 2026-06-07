@@ -3,6 +3,7 @@ import db from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { sendWithdrawalDecisionEmail } from '@/lib/email';
+import { appendSubmissionEvent } from '@/lib/case-files/audit';
 
 export async function POST(
   request: Request,
@@ -17,7 +18,7 @@ export async function POST(
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (session.role !== 'admin') {
+    if (!['admin', 'editor'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden: editor role required' }, { status: 403 });
     }
 
@@ -62,30 +63,45 @@ export async function POST(
     const resolvedAt = new Date().toISOString();
     const editorNote = editor_note?.trim() || null;
 
-    if (decision === 'approved') {
-      // Update withdrawal_requests row
-      await db`
+    const client = await db.connect();
+    try {
+      await client.sql`BEGIN`;
+      await client.sql`
         UPDATE withdrawal_requests
-        SET status = 'approved', editor_note = ${editorNote}, resolved_at = ${resolvedAt}
+        SET status = ${decision}, editor_note = ${editorNote}, resolved_at = ${resolvedAt}
         WHERE id = ${wr.id}
       `;
-      // Update submission
-      await db`
-        UPDATE submissions
-        SET status = 'withdrawn', withdrawal_status = 'approved'
-        WHERE id = ${submissionId}
-      `;
-    } else {
-      // Rejected
-      await db`
-        UPDATE withdrawal_requests
-        SET status = 'rejected', editor_note = ${editorNote}, resolved_at = ${resolvedAt}
-        WHERE id = ${wr.id}
-      `;
-      // Clear the withdrawal_status flag so the submission can continue
-      await db`
-        UPDATE submissions SET withdrawal_status = NULL WHERE id = ${submissionId}
-      `;
+      if (decision === 'approved') {
+        await client.sql`
+          UPDATE submissions
+          SET status = 'withdrawn', current_stage = 'withdrawn', withdrawal_status = 'approved',
+              closed_at = NOW(), closed_reason = ${editorNote || wr.reason}, lock_version = lock_version + 1
+          WHERE id = ${submissionId}
+        `;
+      } else {
+        await client.sql`
+          UPDATE submissions
+          SET withdrawal_status = NULL, lock_version = lock_version + 1
+          WHERE id = ${submissionId}
+        `;
+      }
+      await appendSubmissionEvent(client, {
+        submissionId,
+        eventType: decision === 'approved' ? 'withdrawal_approved' : 'withdrawal_rejected',
+        actor: { id: session.id, name: session.name, role: session.role as any, email: session.email },
+        fromStage: sub.current_stage || sub.status,
+        toStage: decision === 'approved' ? 'withdrawn' : (sub.current_stage || sub.status),
+        summary: decision === 'approved'
+          ? 'The editorial team approved the withdrawal request.'
+          : 'The editorial team rejected the withdrawal request.',
+        payload: { withdrawalRequestId: wr.id, editorNote },
+      });
+      await client.sql`COMMIT`;
+    } catch (error) {
+      await client.sql`ROLLBACK`;
+      throw error;
+    } finally {
+      client.release();
     }
 
     // Send email to author

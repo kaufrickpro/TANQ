@@ -29,7 +29,8 @@ import { execSync } from 'child_process';
 import db from '@/lib/db';
 import { createSession } from '@/lib/session';
 import { hashPassword } from '@/lib/password';
-import { put, del } from '@vercel/blob';
+import { del } from '@vercel/blob';
+import { resetTestDatabase } from './helpers/db';
 
 // Mock cookies
 vi.mock('next/headers', () => ({
@@ -50,7 +51,11 @@ vi.mock('next/headers', () => ({
 // Mock Blob SDK
 vi.mock('@vercel/blob', () => ({
   put: vi.fn(async (path, data, options) => {
-    return { url: `https://mock.blob.vercel.storage/manuscripts/${path}` };
+    return {
+      url: `https://mock.blob.vercel.storage/manuscripts/${path}`,
+      pathname: `manuscripts/${path}`,
+      etag: 'mock-etag',
+    };
   }),
   del: vi.fn(async (url) => {
     return { success: true };
@@ -74,10 +79,7 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
   });
 
   beforeEach(async () => {
-    await db`DELETE FROM auth_sessions`;
-    await db`DELETE FROM reviews`;
-    await db`DELETE FROM submissions`;
-    await db`DELETE FROM users`;
+    await resetTestDatabase();
 
     const passHash = await hashPassword('TestPassword123!');
     
@@ -110,10 +112,6 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
 
     globalThis.testSessionToken = null;
     vi.clearAllMocks();
-  });
-
-  afterAll(async () => {
-    await db.end();
   });
 
   describe('PATCH /api/submissions (Replace File)', () => {
@@ -174,8 +172,17 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       const dbRes = await db`SELECT file_path FROM submissions WHERE id = ${subId}`;
       expect(dbRes.rows[0].file_path).toContain('manuscript_v2.docx');
 
-      // Verify Vercel Blob deletion was called for old file
-      expect(del).toHaveBeenCalledWith('https://mock.blob/file.pdf');
+      // Verify old file was retained and the new upload became the next immutable version.
+      expect(del).not.toHaveBeenCalledWith('https://mock.blob/file.pdf');
+      const versions = await db`
+        SELECT version_number, original_filename, legacy_import
+        FROM document_versions
+        WHERE submission_id = ${subId}
+        ORDER BY version_number ASC
+      `;
+      expect(versions.rows).toHaveLength(2);
+      expect(versions.rows[0].legacy_import).toBe(true);
+      expect(versions.rows[1].original_filename).toBe('manuscript_v2.docx');
     });
 
     it('should allow author to replace file on their own submission in "revision_requested" status', async () => {
@@ -206,7 +213,7 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       const data = await res.json();
       expect(data.file_name).toBe('revision.pdf');
 
-      expect(del).toHaveBeenCalledWith('https://mock.blob/file.pdf');
+      expect(del).not.toHaveBeenCalledWith('https://mock.blob/file.pdf');
     });
 
     it('should block author from replacing file on someone else\'s submission', async () => {
@@ -299,7 +306,7 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       expect(res.status).toBe(403);
     });
 
-    it('should allow author to delete their own submission in "submitted" status and cascade reviews', async () => {
+    it('should block author from deleting a submitted manuscript case file', async () => {
       const subRes = await db`
         INSERT INTO submissions (title, abstract, keywords, author_name, author_email, file_path, status, date_submitted)
         VALUES ('Paper 1', 'Abstract 1', 'keys', 'Author One', 'author1@tanq.com', 'https://mock.blob/file.pdf', 'submitted', '2026-06-07')
@@ -323,18 +330,15 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       });
 
       const res = await submissionsHandler.DELETE(req);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(409);
 
-      // Verify DB row deleted
       const checkSub = await db`SELECT * FROM submissions WHERE id = ${subId}`;
-      expect(checkSub.rows.length).toBe(0);
+      expect(checkSub.rows.length).toBe(1);
 
-      // Verify cascaded reviews are deleted
       const checkReviews = await db`SELECT * FROM reviews WHERE submission_id = ${subId}`;
-      expect(checkReviews.rows.length).toBe(0);
+      expect(checkReviews.rows.length).toBe(1);
 
-      // Verify Vercel Blob deletion was called
-      expect(del).toHaveBeenCalledWith('https://mock.blob/file.pdf');
+      expect(del).not.toHaveBeenCalledWith('https://mock.blob/file.pdf');
     });
 
     it('should block author from deleting someone else\'s submission', async () => {
@@ -376,12 +380,12 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       });
 
       const res = await submissionsHandler.DELETE(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(409);
       const data = await res.json();
-      expect(data.error).toContain('Cannot delete');
+      expect(data.error).toContain('cannot be deleted');
     });
 
-    it('should allow admin to delete any submission and cascade reviews', async () => {
+    it('should block admin from deleting any submitted manuscript case file', async () => {
       const subRes = await db`
         INSERT INTO submissions (title, abstract, keywords, author_name, author_email, file_path, status, date_submitted)
         VALUES ('Paper 1', 'Abstract 1', 'keys', 'Author One', 'author1@tanq.com', 'https://mock.blob/file.pdf', 'in_review', '2026-06-07')
@@ -404,15 +408,15 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       });
 
       const res = await submissionsHandler.DELETE(req);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(409);
 
       const checkSub = await db`SELECT * FROM submissions WHERE id = ${subId}`;
-      expect(checkSub.rows.length).toBe(0);
+      expect(checkSub.rows.length).toBe(1);
 
       const checkReviews = await db`SELECT * FROM reviews WHERE submission_id = ${subId}`;
-      expect(checkReviews.rows.length).toBe(0);
+      expect(checkReviews.rows.length).toBe(1);
 
-      expect(del).toHaveBeenCalledWith('https://mock.blob/file.pdf');
+      expect(del).not.toHaveBeenCalledWith('https://mock.blob/file.pdf');
     });
 
     it('should block admin from deleting a published submission', async () => {
@@ -433,9 +437,9 @@ describe('Submissions PATCH & DELETE Endpoints', () => {
       });
 
       const res = await submissionsHandler.DELETE(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(409);
       const data = await res.json();
-      expect(data.error).toContain('Cannot delete');
+      expect(data.error).toContain('cannot be deleted');
     });
   });
 
@@ -529,12 +533,12 @@ describe('Withdrawal Flow', () => {
     decisionHandler = await import('@/app/api/submissions/[id]/withdrawal-decision/route');
   });
 
+  afterAll(async () => {
+    await db.end();
+  });
+
   beforeEach(async () => {
-    await db`DELETE FROM withdrawal_requests`;
-    await db`DELETE FROM auth_sessions`;
-    await db`DELETE FROM reviews`;
-    await db`DELETE FROM submissions`;
-    await db`DELETE FROM users`;
+    await resetTestDatabase();
 
     const passHash = await hashPassword('TestPassword123!');
 

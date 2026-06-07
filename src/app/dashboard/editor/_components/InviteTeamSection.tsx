@@ -5,8 +5,8 @@ interface InviteTeamSectionProps {
   invites: any[];
   inviteEmail: string;
   setInviteEmail: (val: string) => void;
-  inviteRole: 'reviewer' | 'admin';
-  setInviteRole: (val: 'reviewer' | 'admin') => void;
+  inviteRole: 'reviewer' | 'secretary' | 'editor' | 'admin';
+  setInviteRole: (val: 'reviewer' | 'secretary' | 'editor' | 'admin') => void;
   invitingUser: boolean;
   loadingInvites: boolean;
   handleCreateInvite: (e: React.FormEvent) => void;
@@ -43,7 +43,7 @@ export default function InviteTeamSection({
           <UserPlus size={15} className="text-olive" /> Generate New Staff Invite
         </h3>
         <p className="text-[10px] text-text-muted font-serif leading-normal">
-          Privileged accounts (Editors and Peer Reviewers) cannot register publicly. Generate a secure, single-use registration link for their email address.
+          Privileged editorial and peer-review accounts cannot register publicly. Generate a secure, single-use registration link for their email address.
         </p>
         <form onSubmit={handleCreateInvite} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -65,7 +65,9 @@ export default function InviteTeamSection({
               className="bg-white border border-border-custom rounded-sm w-full px-3 py-2 text-sm text-black focus:outline-none focus:border-olive shadow-sm font-serif"
             >
               <option value="reviewer">Peer Reviewer</option>
-              <option value="admin">Editor / Administrator</option>
+              <option value="secretary">Secretary</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Administrator</option>
             </select>
           </div>
           <div className="sm:col-span-2 pt-1">
@@ -139,11 +141,11 @@ export default function InviteTeamSection({
                         {inv.email}
                       </td>
                       <td className="py-3 pr-2 uppercase font-bold text-[9px] tracking-wider font-sans">
-                        {inv.role === 'admin' ? (
-                          <span className="bg-charcoal text-white px-1.5 py-0.5 rounded-sm">Editor</span>
-                        ) : (
-                          <span className="bg-sand text-olive border border-border-custom px-1.5 py-0.5 rounded-sm">Reviewer</span>
-                        )}
+                        <span className={inv.role === 'admin'
+                          ? 'bg-charcoal text-white px-1.5 py-0.5 rounded-sm'
+                          : 'bg-sand text-olive border border-border-custom px-1.5 py-0.5 rounded-sm'}>
+                          {inv.role.replace('_', ' ')}
+                        </span>
                       </td>
                       <td className="py-3 pr-2 font-medium font-sans">
                         {isRevoked ? (

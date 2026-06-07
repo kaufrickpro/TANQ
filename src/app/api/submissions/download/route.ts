@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     let authorized = false;
 
     // 1. Check if user is Admin
-    if (session.role === 'admin') {
+    if (session.role === 'admin' || session.role === 'editor' || session.role === 'secretary') {
       authorized = true;
     }
 

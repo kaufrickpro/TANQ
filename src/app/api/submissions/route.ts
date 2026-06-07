@@ -1,18 +1,24 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { put, del } from '@vercel/blob';
-import crypto from 'crypto';
+import { del } from '@vercel/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
+import { createSubmittedCaseFile, uploadDocumentVersion } from '@/lib/case-files/documents';
+import type { DocumentKind } from '@/lib/case-files/types';
 
 function mapSubmission(row: any) {
   if (!row) return null;
   const { file_path, ...rest } = row;
-  const fileName = file_path ? (file_path.split('/').pop() || 'manuscript') : '';
+  const storedName = file_path ? (file_path.split('/').pop() || 'manuscript') : '';
+  const fileName = storedName.replace(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i,
+    '',
+  );
   return {
     ...rest,
     file_name: fileName,
     download_url: file_path ? `/api/submissions/download?submission_id=${row.id}` : null,
+    case_file_url: `/api/case-files/${row.id}`,
   };
 }
 
@@ -32,8 +38,8 @@ export async function GET(request: Request) {
     }
 
     // Admin / Editor checks — exclude drafts from the queue
-    if (role === 'admin' || role === 'editor') {
-      if (session.role !== 'admin') {
+    if (role === 'admin' || role === 'editor' || role === 'secretary') {
+      if (!['admin', 'editor', 'secretary'].includes(session.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`SELECT * FROM submissions WHERE status != 'draft' ORDER BY id DESC`;
@@ -62,18 +68,45 @@ export async function GET(request: Request) {
       }
       const result = await db`
         SELECT 
-          s.id, s.title, s.abstract, s.keywords, s.author_name, s.author_email, s.file_path, s.status, s.date_submitted,
-          r.id AS review_id, r.reviewer_name, r.reviewer_email, r.comments, r.recommendation, r.score, r.date_reviewed
+          s.id, s.title, s.abstract, s.keywords, s.author_name, s.author_email, s.file_path, s.status,
+          s.current_stage, s.date_submitted,
+          ra.id AS review_id, ra.reviewer_name, ra.reviewer_email, ra.status AS assignment_status,
+          rp.comments_to_author AS comments, rp.recommendation, rp.score, rp.submitted_at AS date_reviewed,
+          dv.id AS assigned_version_id, dv.original_filename AS assigned_file_name
         FROM submissions s
-        JOIN reviews r ON s.id = r.submission_id
-        WHERE TRIM(LOWER(r.reviewer_email)) = TRIM(LOWER(${email}))
+        JOIN review_assignments ra ON s.id = ra.submission_id
+        JOIN review_rounds rr ON rr.id = ra.review_round_id
+        JOIN document_versions dv ON dv.id = rr.manuscript_version_id
+        LEFT JOIN review_reports rp ON rp.assignment_id = ra.id
+        WHERE TRIM(LOWER(ra.reviewer_email)) = TRIM(LOWER(${email}))
+          AND ra.status != 'cancelled'
         ORDER BY s.id DESC
       `;
+      if (result.rows.length === 0) {
+        const legacy = await db`
+          SELECT s.*, r.id AS review_id, r.reviewer_name, r.reviewer_email,
+                 r.comments, r.recommendation, r.score, r.date_reviewed
+          FROM submissions s
+          JOIN reviews r ON r.submission_id = s.id
+          WHERE TRIM(LOWER(r.reviewer_email)) = TRIM(LOWER(${email}))
+          ORDER BY s.id DESC
+        `;
+        return NextResponse.json(legacy.rows.map(row => {
+          const mapped = mapSubmission(row);
+          if (mapped) {
+            delete (mapped as any).author_name;
+            delete (mapped as any).author_email;
+          }
+          return mapped;
+        }));
+      }
       return NextResponse.json(result.rows.map(row => {
         const mapped = mapSubmission(row);
         if (mapped) {
           delete (mapped as any).author_name;
           delete (mapped as any).author_email;
+          mapped.file_name = row.assigned_file_name;
+          mapped.download_url = `/api/case-files/${row.id}/documents/${row.assigned_version_id}/download`;
         }
         return mapped;
       }));
@@ -104,121 +137,51 @@ export async function POST(request: Request) {
     }
 
     const contentType = request.headers.get('content-type') || '';
-    let title = '';
-    let abstract = '';
-    let keywords = '';
-    let filePath = '';
-    let submissionType = 'Research Article';
-    let topic: string | null = null;
-    let language = 'English';
-    let shortTitle: string | null = null;
-    let coAuthors: any[] = [];
-    let editorNote: string | null = null;
-    let projectNumber: string | null = null;
-    let ethicsStatement: string | null = null;
-    let supportingInstitution: string | null = null;
-    let acknowledgements: string | null = null;
-    let checklistConfirmed = false;
-
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
-      title = (formData.get('title') as string) || '';
-      abstract = (formData.get('abstract') as string) || '';
-      keywords = (formData.get('keywords') as string) || '';
-
-      // Wizard extra fields
-      submissionType = (formData.get('submission_type') as string) || 'Research Article';
-      topic = (formData.get('topic') as string) || null;
-      language = (formData.get('language') as string) || 'English';
-      shortTitle = (formData.get('short_title') as string) || null;
-      const coAuthorsRaw = formData.get('co_authors') as string | null;
-      coAuthors = coAuthorsRaw ? JSON.parse(coAuthorsRaw) : [];
-      editorNote = (formData.get('editor_note') as string) || null;
-      projectNumber = (formData.get('project_number') as string) || null;
-      ethicsStatement = (formData.get('ethics_statement') as string) || null;
-      supportingInstitution = (formData.get('supporting_institution') as string) || null;
-      acknowledgements = (formData.get('acknowledgements') as string) || null;
-      checklistConfirmed = formData.get('checklist_confirmed') === 'true';
-
-      const file = formData.get('file') as File | null;
-      if (!file) {
-        return NextResponse.json({ error: 'File upload is required' }, { status: 400 });
-      }
-
-      // File type check
-      const allowedExtensions = ['pdf', 'doc', 'docx'];
-      const nameParts = file.name.split('.');
-      const ext = nameParts.pop()?.toLowerCase();
-      if (!ext || !allowedExtensions.includes(ext)) {
-        return NextResponse.json({ error: 'Only PDF, DOC, and DOCX files are allowed.' }, { status: 400 });
-      }
-
-      // MIME-type check
-      const allowedMimeTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      const coAuthorsRaw = formData.get('co_authors');
+      const fileFields: Array<[string, DocumentKind]> = [
+        ['file', 'manuscript'],
+        ['file_title_page', 'title_page'],
+        ['file_supplementary', 'supplementary'],
+        ['file_copyright_form', 'copyright_form'],
+        ['file_similarity_report', 'similarity_report'],
+        ['file_ethics_approval', 'ethics_approval'],
       ];
-      if (file.type && !allowedMimeTypes.includes(file.type)) {
-        return NextResponse.json({ error: 'Only PDF, DOC, and DOCX files are allowed (MIME-type check failed).' }, { status: 400 });
-      }
-
-      // Size limit: 20MB
-      if (file.size > 20 * 1024 * 1024) {
-        return NextResponse.json({ error: 'File size must be less than 20MB.' }, { status: 400 });
-      }
-
-      // Upload to Vercel Blob with randomized path and private access
-      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const randomPath = `manuscripts/${crypto.randomUUID()}/${safeName}`;
-      const blob = await put(randomPath, file, { access: 'private' });
-      filePath = blob.url;
-    } else {
-      // JSON fallback
-      const body = await request.json();
-      title = body.title;
-      abstract = body.abstract;
-      keywords = body.keywords;
-      filePath = body.file_path;
-      submissionType = body.submission_type || 'Research Article';
-      topic = body.topic || null;
-      language = body.language || 'English';
-      shortTitle = body.short_title || null;
-      coAuthors = body.co_authors || [];
-      editorNote = body.editor_note || null;
-      projectNumber = body.project_number || null;
-      ethicsStatement = body.ethics_statement || null;
-      supportingInstitution = body.supporting_institution || null;
-      acknowledgements = body.acknowledgements || null;
-      checklistConfirmed = !!body.checklist_confirmed;
+      const files = fileFields.flatMap(([field, kind]) => {
+        const value = formData.get(field);
+        return value instanceof File && value.size > 0 ? [{ kind, file: value }] : [];
+      });
+      const submissionId = await createSubmittedCaseFile({
+        draftId: formData.get('draft_id') ? Number(formData.get('draft_id')) : null,
+        metadata: {
+          title: String(formData.get('title') || ''),
+          abstract: String(formData.get('abstract') || ''),
+          keywords: String(formData.get('keywords') || ''),
+          authorName: session.name,
+          authorEmail: session.email,
+          submissionType: String(formData.get('submission_type') || 'Research Article'),
+          topic: String(formData.get('topic') || '') || null,
+          language: String(formData.get('language') || 'English'),
+          shortTitle: String(formData.get('short_title') || '') || null,
+          coAuthors: typeof coAuthorsRaw === 'string' && coAuthorsRaw ? JSON.parse(coAuthorsRaw) : [],
+          editorNote: String(formData.get('editor_note') || '') || null,
+          projectNumber: String(formData.get('project_number') || '') || null,
+          ethicsStatement: String(formData.get('ethics_statement') || '') || null,
+          supportingInstitution: String(formData.get('supporting_institution') || '') || null,
+          acknowledgements: String(formData.get('acknowledgements') || '') || null,
+          checklistConfirmed: formData.get('checklist_confirmed') === 'true',
+        },
+        files,
+        actor: { id: session.id, name: session.name, role: 'author', email: session.email },
+      });
+      const result = await db`SELECT * FROM submissions WHERE id = ${submissionId}`;
+      return NextResponse.json(mapSubmission(result.rows[0]), { status: 201 });
     }
 
-    if (!title || !abstract || !keywords || !filePath) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
-    }
-
-    const authorName = session.name;
-    const authorEmail = session.email;
-    const currentDate = new Date().toISOString().split('T')[0];
-
-    const result = await db`
-      INSERT INTO submissions (
-        title, abstract, keywords, author_name, author_email, file_path, status, date_submitted,
-        submission_type, topic, language, short_title, co_authors,
-        editor_note, project_number, ethics_statement, supporting_institution, acknowledgements,
-        checklist_confirmed, draft_step
-      )
-      VALUES (
-        ${title}, ${abstract}, ${keywords}, ${authorName}, ${authorEmail},
-        ${filePath}, 'submitted', ${currentDate},
-        ${submissionType}, ${topic}, ${language}, ${shortTitle}, ${JSON.stringify(coAuthors)},
-        ${editorNote}, ${projectNumber}, ${ethicsStatement}, ${supportingInstitution}, ${acknowledgements},
-        ${checklistConfirmed}, 5
-      )
-      RETURNING *
-    `;
-
-    return NextResponse.json(mapSubmission(result.rows[0]));
+    return NextResponse.json({
+      error: 'Submitted manuscripts must use multipart/form-data so every file can be archived and checksummed.',
+    }, { status: 415 });
   } catch (error: any) {
     console.error('Error in submissions POST:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -238,7 +201,7 @@ export async function PUT(request: Request) {
     }
 
     // Only editors (admin) can update submissions/upload revisions
-    if (session.role !== 'admin') {
+    if (!['admin', 'editor'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -278,24 +241,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'File size must be less than 20MB.' }, { status: 400 });
     }
 
-    // Upload revision to Vercel Blob with randomized path and private access
-    const baseName = nameParts.join('.');
-    const safeName = `${baseName}_editor_revision_${Date.now()}.${ext}`.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const randomPath = `manuscripts/${crypto.randomUUID()}/${safeName}`;
-    const blob = await put(randomPath, file, { access: 'private' });
-    const filePath = blob.url;
-
-    const result = await db`
-      UPDATE submissions 
-      SET file_path = ${filePath} 
-      WHERE id = ${Number(submissionId)}
-      RETURNING *
-    `;
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
-    }
-
+    await uploadDocumentVersion({
+      submissionId: Number(submissionId),
+      kind: 'manuscript',
+      file,
+      actor: { id: session.id, name: session.name, role: session.role as any, email: session.email },
+      note: 'Editorial manuscript revision',
+    });
+    const result = await db`SELECT * FROM submissions WHERE id = ${Number(submissionId)}`;
+    if (result.rows.length === 0) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
     return NextResponse.json(mapSubmission(result.rows[0]));
   } catch (error: any) {
     console.error('Error in submissions PUT:', error);
@@ -347,7 +301,7 @@ export async function PATCH(request: Request) {
     }
 
     // Status guard: only 'submitted' or 'revision_requested' allowed
-    const allowedStatuses = ['submitted', 'revision_requested'];
+    const allowedStatuses = ['submitted', 'revision_requested', 'author_revision'];
     if (!allowedStatuses.includes(submission.status)) {
       return NextResponse.json({ error: 'Cannot replace file for submission in current status' }, { status: 400 });
     }
@@ -375,28 +329,16 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'File size must be less than 20MB.' }, { status: 400 });
     }
 
-    // Upload revision to Vercel Blob with randomized path and private access
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const randomPath = `manuscripts/${crypto.randomUUID()}/${safeName}`;
-    const blob = await put(randomPath, file, { access: 'private' });
-    const newFilePath = blob.url;
-
-    // Delete old blob file if it exists
-    if (submission.file_path) {
-      try {
-        await del(submission.file_path);
-      } catch (delError) {
-        console.error('Failed to delete old blob file:', submission.file_path, delError);
-      }
-    }
-
-    const result = await db`
-      UPDATE submissions 
-      SET file_path = ${newFilePath} 
-      WHERE id = ${Number(submissionId)}
-      RETURNING *
-    `;
-
+    await uploadDocumentVersion({
+      submissionId: Number(submissionId),
+      kind: 'manuscript',
+      file,
+      actor: { id: session.id, name: session.name, role: 'author', email: session.email },
+      note: submission.status === 'revision_requested' || submission.current_stage === 'author_revision'
+        ? 'Author revision'
+        : 'Author pre-review update',
+    });
+    const result = await db`SELECT * FROM submissions WHERE id = ${Number(submissionId)}`;
     return NextResponse.json(mapSubmission(result.rows[0]));
   } catch (error: any) {
     console.error('Error in submissions PATCH:', error);
@@ -416,7 +358,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only authors and admins can delete submissions
+    // Only authors and admins can delete unsubmitted drafts.
     if (session.role !== 'author' && session.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -436,22 +378,19 @@ export async function DELETE(request: Request) {
 
     const submission = submissionResult.rows[0];
 
-    // Ownership and status guard check
+    // Ownership guard check
     if (session.role === 'author') {
       if (submission.author_email.trim().toLowerCase() !== session.email.trim().toLowerCase()) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
-      // Status guard: only 'submitted', 'revision_requested', or 'draft' allowed for authors
-      const allowedStatuses = ['submitted', 'revision_requested', 'draft'];
-      if (!allowedStatuses.includes(submission.status)) {
-        return NextResponse.json({ error: 'Cannot delete submission in current status' }, { status: 400 });
-      }
-    } else if (session.role === 'admin') {
-      // Admins cannot delete published submissions
-      if (submission.status === 'published') {
-        return NextResponse.json({ error: 'Cannot delete a published submission' }, { status: 400 });
-      }
+    }
+
+    // Submitted case files are permanent. Withdrawal is the only supported closure.
+    if (submission.status !== 'draft') {
+      return NextResponse.json({
+        error: 'Submitted manuscript case files cannot be deleted. Use the withdrawal workflow instead.',
+      }, { status: 409 });
     }
 
     // Delete old blob file if it exists

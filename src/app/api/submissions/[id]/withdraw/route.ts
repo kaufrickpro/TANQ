@@ -3,12 +3,16 @@ import db from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { sendWithdrawalRequestEmail } from '@/lib/email';
+import { appendSubmissionEvent } from '@/lib/case-files/audit';
 
 // Statuses where the author can INSTANTLY withdraw (no editor approval needed)
-const INSTANT_WITHDRAW_STATUSES = ['submitted', 'draft'];
+const INSTANT_WITHDRAW_STATUSES = ['submitted'];
 
 // Statuses where the author must REQUEST withdrawal (editor must approve)
-const REQUEST_WITHDRAW_STATUSES = ['in_review', 'revision_requested'];
+const REQUEST_WITHDRAW_STATUSES = [
+  'secretary_check', 'editor_screening', 'in_review', 'under_review',
+  'editor_decision', 'revision_requested', 'author_revision',
+];
 
 // Statuses where withdrawal is NOT allowed at all
 const NO_WITHDRAW_STATUSES = ['accepted', 'published', 'withdrawn'];
@@ -73,11 +77,31 @@ export async function POST(
 
     // INSTANT WITHDRAW — no editor approval needed
     if (INSTANT_WITHDRAW_STATUSES.includes(status)) {
-      await db`
-        UPDATE submissions
-        SET status = 'withdrawn', withdrawal_status = 'approved'
-        WHERE id = ${submissionId}
-      `;
+      const client = await db.connect();
+      try {
+        await client.sql`BEGIN`;
+        await client.sql`
+          UPDATE submissions
+          SET status = 'withdrawn', current_stage = 'withdrawn', withdrawal_status = 'approved',
+              closed_at = NOW(), closed_reason = ${reason.trim()}, lock_version = lock_version + 1
+          WHERE id = ${submissionId}
+        `;
+        await appendSubmissionEvent(client, {
+          submissionId,
+          eventType: 'submission_withdrawn',
+          actor: { id: session.id, name: session.name, role: 'author', email: session.email },
+          fromStage: sub.current_stage || status,
+          toStage: 'withdrawn',
+          summary: 'The author withdrew the submission before editorial processing.',
+          payload: { reason: reason.trim() },
+        });
+        await client.sql`COMMIT`;
+      } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+      } finally {
+        client.release();
+      }
       return NextResponse.json({
         type: 'instant',
         message: 'Submission has been withdrawn successfully.',
@@ -86,18 +110,36 @@ export async function POST(
 
     // WITHDRAWAL REQUEST — editor must approve
     if (REQUEST_WITHDRAW_STATUSES.includes(status)) {
-      // Record the request
-      await db`
-        INSERT INTO withdrawal_requests (submission_id, requested_by, reason, status)
-        VALUES (${submissionId}, ${session.email}, ${reason.trim()}, 'pending')
-      `;
-      // Mark on submission
-      await db`
-        UPDATE submissions SET withdrawal_status = 'requested' WHERE id = ${submissionId}
-      `;
+      const client = await db.connect();
+      try {
+        await client.sql`BEGIN`;
+        const requestResult = await client.sql`
+          INSERT INTO withdrawal_requests (submission_id, requested_by, reason, status)
+          VALUES (${submissionId}, ${session.email}, ${reason.trim()}, 'pending')
+          RETURNING id
+        `;
+        await client.sql`
+          UPDATE submissions
+          SET withdrawal_status = 'requested', lock_version = lock_version + 1
+          WHERE id = ${submissionId}
+        `;
+        await appendSubmissionEvent(client, {
+          submissionId,
+          eventType: 'withdrawal_requested',
+          actor: { id: session.id, name: session.name, role: 'author', email: session.email },
+          summary: 'The author requested withdrawal of the manuscript.',
+          payload: { withdrawalRequestId: requestResult.rows[0].id, reason: reason.trim() },
+        });
+        await client.sql`COMMIT`;
+      } catch (error) {
+        await client.sql`ROLLBACK`;
+        throw error;
+      } finally {
+        client.release();
+      }
 
-      // Notify editors — fetch all admin emails
-      const admins = await db`SELECT email FROM users WHERE role = 'admin'`;
+      // Notify enabled editors and administrators.
+      const admins = await db`SELECT email FROM users WHERE role IN ('admin', 'editor') AND is_disabled = FALSE`;
       for (const admin of admins.rows) {
         await sendWithdrawalRequestEmail(
           admin.email,

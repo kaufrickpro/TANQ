@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, BookOpen, CheckCircle, RefreshCw, Edit } from 'lucide-react';
 import ReviewEvaluationForm from './_components/ReviewEvaluationForm';
+import CaseFilePanel from '@/components/case-files/CaseFilePanel';
 
 export interface ReviewAssignment {
   id: number;
@@ -94,13 +95,13 @@ export default function ReviewerDashboard() {
     setSuccess('');
 
     try {
-      const res = await fetch('/api/reviews', {
+      const res = await fetch(`/api/case-files/${activeReview.id}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'submit',
-          review_id: activeReview.review_id,
-          comments,
+          action: 'submit_report',
+          assignment_id: activeReview.review_id,
+          comments_to_author: comments,
           recommendation,
           score
         })
@@ -217,6 +218,7 @@ export default function ReviewerDashboard() {
 
       {/* Right Column: Review Submission Form */}
       <div className="lg:col-span-5 space-y-6">
+        {activeReview && <CaseFilePanel submissionId={activeReview.id} role="reviewer" />}
         {activeReview ? (
           <ReviewEvaluationForm
             activeReview={activeReview}

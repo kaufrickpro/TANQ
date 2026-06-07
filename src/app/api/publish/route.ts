@@ -3,6 +3,9 @@ import db from '@/lib/db';
 import { put } from '@vercel/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
+import { uploadDocumentVersion } from '@/lib/case-files/documents';
+import { transitionSubmission } from '@/lib/case-files/workflow';
+import type { AuthUser } from '@/lib/session';
 
 function getString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (session.role !== 'admin') {
+    if (!['admin', 'editor'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -55,7 +58,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function handleMultipartPost(request: Request) {
+async function handleMultipartPost(request: Request, session: AuthUser) {
   const formData = await request.formData();
   const action = getString(formData, 'action');
 
@@ -156,7 +159,18 @@ async function handleMultipartPost(request: Request) {
       return NextResponse.json({ error: 'A final article PDF file is required to publish.' }, { status: 400 });
     }
 
-    // Validate and save the final PDF file (must be public)
+    const submissionResult = await db`SELECT * FROM submissions WHERE id = ${submissionId}`;
+    const submission = submissionResult.rows[0];
+
+    if (!submission) {
+      return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+    }
+    const stage = submission.current_stage || submission.status;
+    if (!['accepted', 'production'].includes(stage)) {
+      return NextResponse.json({ error: 'Only accepted or production-stage submissions can be published' }, { status: 409 });
+    }
+
+    // Validate and save only after workflow eligibility has been confirmed.
     let pdfUrl = '';
     try {
       pdfUrl = await savePdfFile(file, 'articles');
@@ -164,12 +178,13 @@ async function handleMultipartPost(request: Request) {
       return NextResponse.json({ error: err.message || 'File upload failed. Make sure it is a PDF.' }, { status: 400 });
     }
 
-    const submissionResult = await db`SELECT * FROM submissions WHERE id = ${submissionId}`;
-    const submission = submissionResult.rows[0];
-
-    if (!submission) {
-      return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
-    }
+    const evidenceVersion = await uploadDocumentVersion({
+      submissionId,
+      kind: 'published_pdf',
+      file,
+      actor: { id: session.id, name: session.name, role: session.role as any, email: session.email },
+      note: 'Private evidence copy of the published article PDF',
+    });
 
     const finalTitle = title || submission.title;
     const finalAuthors = authors || submission.author_name;
@@ -180,12 +195,27 @@ async function handleMultipartPost(request: Request) {
     const currentDate = new Date().toISOString().split('T')[0];
 
     const insertArticleResult = await db`
-      INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published)
-      VALUES (${issueId}, ${finalTitle}, ${finalAuthors}, ${finalAbstract}, ${finalKeywords}, ${finalDoi}, ${finalPages}, ${pdfUrl}, ${type}, ${currentDate})
+      INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published, source_document_version_id)
+      VALUES (${issueId}, ${finalTitle}, ${finalAuthors}, ${finalAbstract}, ${finalKeywords}, ${finalDoi}, ${finalPages}, ${pdfUrl}, ${type}, ${currentDate}, ${evidenceVersion.version.id})
       RETURNING *
     `;
 
-    await db`UPDATE submissions SET status = 'published' WHERE id = ${submissionId}`;
+    const actor = { id: session.id, name: session.name, role: session.role as any, email: session.email };
+    if (stage === 'accepted') {
+      await transitionSubmission({
+        submissionId,
+        toStage: 'production',
+        actor,
+        summary: 'Submission entered production before publication.',
+      });
+    }
+    await transitionSubmission({
+      submissionId,
+      toStage: 'published',
+      actor,
+      summary: 'Final article PDF was published.',
+      payload: { articleId: insertArticleResult.rows[0].id, sourceDocumentVersionId: evidenceVersion.version.id },
+    });
 
     const newArticle = insertArticleResult.rows[0];
     return NextResponse.json({ success: true, article: newArticle });
@@ -205,13 +235,13 @@ export async function POST(request: Request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (session.role !== 'admin') {
+    if (!['admin', 'editor'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
-      return await handleMultipartPost(request);
+      return await handleMultipartPost(request, session);
     }
 
     const body = await request.json();

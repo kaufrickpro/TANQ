@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Send, Award, ShieldAlert, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import type { Submission, Review, Issue } from '../page';
+import CaseFilePanel from '@/components/case-files/CaseFilePanel';
 
 interface SubmissionDetailProps {
   selectedSub: Submission;
@@ -86,6 +87,7 @@ export default function SubmissionDetail({
 
   return (
     <div className="space-y-6">
+      <CaseFilePanel submissionId={selectedSub.id} role="editor" />
 
       {/* Withdrawal Request Banner */}
       {selectedSub.withdrawal_status === 'requested' && (

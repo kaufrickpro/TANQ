@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FilePlus, FileText, RefreshCw, CheckCircle, AlertCircle, X as CloseIcon, Edit3, Trash2, X } from 'lucide-react';
+import { FilePlus, FileText, RefreshCw, CheckCircle, AlertCircle, X as CloseIcon, Edit3, X } from 'lucide-react';
 import SubmissionWizard from './_components/SubmissionWizard';
 import WithdrawalModal from './_components/WithdrawalModal';
+import CaseFilePanel from '@/components/case-files/CaseFilePanel';
 
 interface Submission {
   id: number;
@@ -51,7 +52,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // Statuses that allow withdrawal
-const WITHDRAWABLE_STATUSES = ['submitted', 'in_review', 'revision_requested'];
+const WITHDRAWABLE_STATUSES = [
+  'submitted', 'secretary_check', 'editor_screening', 'in_review', 'under_review',
+  'editor_decision', 'revision_requested', 'author_revision',
+];
 
 export default function AuthorDashboard() {
   const router = useRouter();
@@ -68,12 +72,10 @@ export default function AuthorDashboard() {
   // Withdrawal state
   const [withdrawSub, setWithdrawSub] = useState<Submission | null>(null);
 
-  // Edit & Delete state
+  // Case-file detail and compatibility revision upload state
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
   const [replacingId, setReplacingId] = useState<number | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [actionSuccess, setActionSuccess] = useState('');
   const [actionError, setActionError] = useState('');
 
@@ -127,7 +129,7 @@ export default function AuthorDashboard() {
         setError(data.error || 'Failed to delete draft.');
         setTimeout(() => setError(''), 5000);
       }
-    } catch (e: any) {
+    } catch {
       setError('Error deleting draft.');
       setTimeout(() => setError(''), 5000);
     }
@@ -179,34 +181,6 @@ export default function AuthorDashboard() {
       setActionError(e.message || 'Error replacing paper file');
     } finally {
       setReplacingId(null);
-    }
-  };
-
-  const handleDeleteSubmission = async (submissionId: number) => {
-    setDeletingId(submissionId);
-    setActionError('');
-    setActionSuccess('');
-
-    try {
-      const res = await fetch(`/api/submissions?submission_id=${submissionId}`, {
-        method: 'DELETE'
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to delete submission');
-      }
-
-      setActionSuccess('Submission deleted successfully.');
-      setConfirmDeleteId(null);
-      setExpandedSubmissionId(null);
-      if (session?.email) {
-        fetchSubmissions(session.email);
-      }
-    } catch (e: any) {
-      setActionError(e.message || 'Error deleting submission');
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -356,13 +330,12 @@ export default function AuthorDashboard() {
                     <span className={`text-[9px] uppercase font-sans font-bold tracking-widest px-2.5 py-0.5 rounded-sm border ${STATUS_COLORS[sub.status] || STATUS_COLORS.submitted}`}>
                       {sub.status.replace(/_/g, ' ')}
                     </span>
-                    {(sub.status === 'submitted' || sub.status === 'revision_requested') && sub.withdrawal_status !== 'requested' && (
+                    {sub.withdrawal_status !== 'requested' && (
                       <button
                         onClick={() => {
                           setActionError('');
                           setActionSuccess('');
                           setReplaceFile(null);
-                          setConfirmDeleteId(null);
                           setExpandedSubmissionId(expandedSubmissionId === sub.id ? null : sub.id);
                         }}
                         className="p-1 text-text-muted hover:text-olive border border-border-custom bg-white hover:bg-sand/10 rounded-sm cursor-pointer transition-colors"
@@ -415,10 +388,12 @@ export default function AuthorDashboard() {
                       </div>
                     )}
 
-                    {/* Replace File Form */}
-                    <form onSubmit={(e) => handleReplaceFile(e, sub.id)} className="space-y-3">
+                    <CaseFilePanel submissionId={sub.id} role="author" />
+
+                    {/* Compatibility upload form */}
+                    {(sub.status === 'submitted' || sub.status === 'revision_requested' || sub.status === 'author_revision') && <form onSubmit={(e) => handleReplaceFile(e, sub.id)} className="space-y-3">
                       <div>
-                        <label className="block text-[10px] block font-bold uppercase tracking-wider text-text-muted mb-1.5">Replace Blinded Manuscript (Word / PDF)</label>
+                        <label className="block text-[10px] block font-bold uppercase tracking-wider text-text-muted mb-1.5">Upload New Blinded Manuscript Version (Word / PDF)</label>
                         <div className="flex gap-2">
                           <input
                             id={`replace-file-${sub.id}`}
@@ -433,52 +408,15 @@ export default function AuthorDashboard() {
                             disabled={replacingId === sub.id}
                             className="bg-olive hover:bg-link-hover text-white font-sans font-bold px-4 py-2 rounded-sm shadow-sm transition-colors cursor-pointer disabled:opacity-50 text-[10px] uppercase tracking-wider shrink-0"
                           >
-                            {replacingId === sub.id ? 'Uploading...' : 'Replace'}
+                            {replacingId === sub.id ? 'Uploading...' : 'Upload Version'}
                           </button>
                         </div>
                       </div>
-                    </form>
+                    </form>}
 
-                    {/* Delete Submission */}
+                    {/* Submitted case files cannot be deleted. */}
                     <div className="pt-2 border-t border-border-light flex justify-between items-center">
-                      <span className="text-[10px] text-text-muted leading-relaxed font-serif">Want to completely withdraw/delete this submission?</span>
-                      {confirmDeleteId !== sub.id ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActionError('');
-                            setActionSuccess('');
-                            setConfirmDeleteId(sub.id);
-                          }}
-                          className="text-red-600 hover:text-red-700 font-sans font-bold flex items-center gap-1 text-[10px] uppercase tracking-wider border border-red-200 hover:border-red-300 bg-white px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={12} />
-                          Delete
-                        </button>
-                      ) : (
-                        <div className="bg-red-50 border border-red-200 p-3 rounded-sm space-y-2 max-w-sm ml-auto">
-                          <p className="text-[10px] text-red-800 font-serif leading-normal font-bold">
-                            Are you absolutely sure you want to delete this submission? This action cannot be undone and will permanently remove all files and reviews.
-                          </p>
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="bg-white border border-border-custom hover:bg-gray-50 text-text-primary px-2.5 py-1 text-[10px] font-sans font-bold uppercase tracking-wider rounded-sm cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              disabled={deletingId === sub.id}
-                              onClick={() => handleDeleteSubmission(sub.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 text-[10px] font-sans font-bold uppercase tracking-wider rounded-sm cursor-pointer disabled:opacity-50"
-                            >
-                              {deletingId === sub.id ? 'Deleting...' : 'Yes, Delete'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <span className="text-[10px] text-text-muted leading-relaxed font-serif">Submitted case files are retained permanently. Use the withdrawal workflow to close this submission.</span>
                     </div>
                   </div>
                 )}

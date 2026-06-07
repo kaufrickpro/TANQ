@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       if (!name) {
         return NextResponse.json({ error: 'Full name and email are required' }, { status: 400 });
       }
-      if (!['author', 'reviewer', 'admin'].includes(role)) {
+      if (!['author', 'reviewer', 'secretary', 'editor', 'admin'].includes(role)) {
         return NextResponse.json({ error: 'Invalid account type' }, { status: 400 });
       }
 
@@ -134,10 +134,10 @@ export async function POST(request: Request) {
       const regEmail = email.trim().toLowerCase();
 
       // For privileged roles, complete invitation verification & registration inside a transaction
-      if (role === 'admin' || role === 'reviewer') {
+      if (role === 'admin' || role === 'editor' || role === 'secretary' || role === 'reviewer') {
         if (!token) {
           return NextResponse.json({ 
-            error: 'An invitation token is required to register as a Peer Reviewer or Editor / Administrator.' 
+            error: 'An invitation token is required to register as editorial staff or a peer reviewer.'
           }, { status: 400 });
         }
 
