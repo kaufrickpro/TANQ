@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { safeJson } from '@/lib/clientFetch';
 import {
   ChevronRight, ChevronLeft, Check, X, Plus, Trash2,
   FileText, Users, Paperclip, Info, Eye, Upload,
@@ -311,7 +312,7 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
           }),
         });
         if (!res.ok) throw new Error('Could not save draft');
-        const data = await res.json();
+        const data = await safeJson(res);
         setDraftId(data.id);
       } else {
         // Patch existing draft
@@ -396,17 +397,8 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
       });
 
       if (!res.ok) {
-        let errMsg = 'Failed to submit';
-        try {
-          const d = await res.json();
-          errMsg = d.error || errMsg;
-        } catch {
-          try {
-            const text = await res.text();
-            if (text) errMsg = text;
-          } catch {}
-        }
-        throw new Error(errMsg);
+        const d = await safeJson(res);
+        throw new Error(d.error || 'Failed to submit');
       }
 
       onSuccess();

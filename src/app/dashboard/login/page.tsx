@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeJson } from '@/lib/clientFetch';
 import { Lock, User, AlertCircle, ArrowRight, Mail, IdCard, ShieldCheck, Check, X, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
@@ -86,15 +87,7 @@ export default function LoginPage() {
 
         fetch(`/api/invitations?token=${token}`)
           .then(async (res) => {
-            let data: any = {};
-            try {
-              data = await res.json();
-            } catch {
-              try {
-                const text = await res.text();
-                data = { error: text };
-              } catch {}
-            }
+            const data = await safeJson(res);
             if (!res.ok) {
               throw new Error(data.error || 'Invalid invitation link');
             }
@@ -182,15 +175,7 @@ export default function LoginPage() {
         )
       });
 
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        try {
-          const text = await res.text();
-          data = { error: text };
-        } catch {}
-      }
+      const data = await safeJson(res);
 
       if (!res.ok) {
         if (res.status === 403 && data.requiresVerification) {
@@ -229,15 +214,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, otp })
       });
 
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        try {
-          const text = await res.text();
-          data = { error: text };
-        } catch {}
-      }
+      const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Verification failed');
       }
@@ -262,15 +239,7 @@ export default function LoginPage() {
         body: JSON.stringify({ action: 'resend-otp', email })
       });
 
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        try {
-          const text = await res.text();
-          data = { error: text };
-        } catch {}
-      }
+      const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Failed to resend code');
       }

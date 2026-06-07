@@ -2,19 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Submission, Review, Issue, JournalVolume } from '../page';
 import type { ManagedAccount } from '@/app/api/accounts/route';
-
-async function safeJson(res: Response): Promise<any> {
-  try {
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { error: text || res.statusText || 'Response parse failed' };
-    }
-  } catch {
-    return { error: res.statusText || 'Network request failed' };
-  }
-}
+import { safeJson } from '@/lib/clientFetch';
 
 interface UserSession {
   id: number;

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { safeJson } from '@/lib/clientFetch';
 import { X, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 
 interface WithdrawalModalProps {
@@ -46,15 +47,7 @@ export default function WithdrawalModal({
         },
         body: JSON.stringify({ reason: reason.trim() }),
       });
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        try {
-          const text = await res.text();
-          data = { error: text };
-        } catch {}
-      }
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Withdrawal failed');
       onSuccess({ type: data.type, message: data.message });
     } catch (e: any) {
