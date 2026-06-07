@@ -3,6 +3,19 @@ import { useRouter } from 'next/navigation';
 import type { Submission, Review, Issue, JournalVolume } from '../page';
 import type { ManagedAccount } from '@/app/api/accounts/route';
 
+async function safeJson(res: Response): Promise<any> {
+  try {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text || res.statusText || 'Response parse failed' };
+    }
+  } catch {
+    return { error: res.statusText || 'Network request failed' };
+  }
+}
+
 interface UserSession {
   id: number;
   username: string;
@@ -103,7 +116,7 @@ export function useEditorDashboard() {
           router.push('/dashboard/login');
           return;
         }
-        const sessionUser = await res.json();
+        const sessionUser = await safeJson(res);
         if (sessionUser.role !== 'admin') {
           router.push('/dashboard/login');
           return;
@@ -119,13 +132,13 @@ export function useEditorDashboard() {
     try {
       const subRes = await fetch('/api/submissions?role=editor');
       if (subRes.ok) {
-        const subData = await subRes.json();
+        const subData = await safeJson(subRes);
         setSubmissions(subData);
       }
 
       const issueRes = await fetch('/api/publish?include=volumes');
       if (issueRes.ok) {
-        const issueData = await issueRes.json();
+        const issueData = await safeJson(issueRes);
         const nextIssues = Array.isArray(issueData) ? issueData : issueData.issues;
         setIssues(nextIssues);
         setVolumes(Array.isArray(issueData) ? [] : issueData.volumes);
@@ -146,7 +159,7 @@ export function useEditorDashboard() {
     try {
       const res = await fetch('/api/invitations');
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeJson(res);
         setInvites(data);
       }
     } catch (e) {
@@ -161,7 +174,7 @@ export function useEditorDashboard() {
     try {
       const res = await fetch('/api/accounts');
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeJson(res);
         setAccounts(data);
       }
     } catch (e) {
@@ -180,7 +193,7 @@ export function useEditorDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'disable', userId }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Failed to disable account');
       }
@@ -200,7 +213,7 @@ export function useEditorDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'restore', userId }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Failed to restore account');
       }
@@ -220,7 +233,7 @@ export function useEditorDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', userId, confirmationEmail }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Failed to delete account');
       }
@@ -256,12 +269,12 @@ export function useEditorDashboard() {
         body: formData
       });
 
+      const responseData = await safeJson(res);
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to upload revised manuscript');
+        throw new Error(responseData.error || 'Failed to upload revised manuscript');
       }
 
-      const updatedSub = await res.json();
+      const updatedSub = responseData;
       setSuccess('Manuscript file revised and uploaded successfully!');
       setSelectedSub(updatedSub);
       setRevisionFile(null);
@@ -296,12 +309,12 @@ export function useEditorDashboard() {
         })
       });
 
+      const responseData = await safeJson(res);
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to generate invitation');
+        throw new Error(responseData.error || 'Failed to generate invitation');
       }
 
-      const data = await res.json();
+      const data = responseData;
       const rawToken = data.invitation.token;
       const url = `${window.location.origin}/dashboard/login#register?invite=${rawToken}`;
       setNewlyCreatedInviteUrl(url);
@@ -358,7 +371,7 @@ export function useEditorDashboard() {
     try {
       const res = await fetch(`/api/reviews?submission_id=${subId}`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeJson(res);
         setReviews(data);
       }
     } catch (e) {
@@ -436,7 +449,7 @@ export function useEditorDashboard() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
+        const errData = await safeJson(res);
         throw new Error(errData.error || 'Failed to publish article');
       }
 
@@ -474,12 +487,12 @@ export function useEditorDashboard() {
         body: formData
       });
 
+      const responseData = await safeJson(res);
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to create issue');
+        throw new Error(responseData.error || 'Failed to create issue');
       }
 
-      const issueData = await res.json();
+      const issueData = responseData;
       await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -524,7 +537,7 @@ export function useEditorDashboard() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
+        const errData = await safeJson(res);
         throw new Error(errData.error || 'Failed to upload volume PDF');
       }
 
@@ -559,7 +572,7 @@ export function useEditorDashboard() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
+        const errData = await safeJson(res);
         throw new Error(errData.error || 'Failed to upload issue PDF');
       }
 
@@ -599,7 +612,7 @@ export function useEditorDashboard() {
         headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
         body: JSON.stringify({ decision: 'approved', editor_note: editorNote }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to approve withdrawal');
       setSuccess('Withdrawal approved. Submission is now withdrawn and author has been notified.');
       setSelectedSub(null);
@@ -618,7 +631,7 @@ export function useEditorDashboard() {
         headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
         body: JSON.stringify({ decision: 'rejected', editor_note: editorNote }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to reject withdrawal');
       setSuccess('Withdrawal request rejected. Submission continues in review. Author has been notified.');
       fetchData();
@@ -626,7 +639,7 @@ export function useEditorDashboard() {
         // refresh the selected sub
         const updated = await fetch('/api/submissions?role=editor');
         if (updated.ok) {
-          const subs = await updated.json();
+          const subs = await safeJson(updated);
           const refreshed = subs.find((s: any) => s.id === submissionId);
           if (refreshed) setSelectedSub(refreshed);
         }

@@ -46,7 +46,15 @@ export default function WithdrawalModal({
         },
         body: JSON.stringify({ reason: reason.trim() }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        try {
+          const text = await res.text();
+          data = { error: text };
+        } catch {}
+      }
       if (!res.ok) throw new Error(data.error || 'Withdrawal failed');
       onSuccess({ type: data.type, message: data.message });
     } catch (e: any) {

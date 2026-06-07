@@ -396,8 +396,17 @@ export default function SubmissionWizard({ session, onSuccess, onClose }: Wizard
       });
 
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || 'Failed to submit');
+        let errMsg = 'Failed to submit';
+        try {
+          const d = await res.json();
+          errMsg = d.error || errMsg;
+        } catch {
+          try {
+            const text = await res.text();
+            if (text) errMsg = text;
+          } catch {}
+        }
+        throw new Error(errMsg);
       }
 
       onSuccess();
