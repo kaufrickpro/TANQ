@@ -16,7 +16,7 @@ interface Article {
   date_published: string;
 }
 
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = 60; // Revalidate every minute
 
 export default async function Home() {
   // Query articles from seeded database
