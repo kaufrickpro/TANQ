@@ -2,7 +2,7 @@ import 'server-only';
 
 export async function sendEvidenceOtpEmail(email: string, otp: string, submissionTitle: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'TANQ <onboarding@resend.dev>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <onboarding@resend.dev>';
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[DEV] Evidence OTP -> ${email}: ${otp}`);
   }
@@ -13,8 +13,8 @@ export async function sendEvidenceOtpEmail(email: string, otp: string, submissio
     body: JSON.stringify({
       from: fromEmail,
       to: email,
-      subject: `TANQ evidence access: ${submissionTitle}`,
-      html: `<p>Your TANQ evidence access code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${otp}</p><p>This code expires in 15 minutes.</p>`,
+      subject: `ANQ evidence access: ${submissionTitle}`,
+      html: `<p>Your ANQ evidence access code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${otp}</p><p>This code expires in 15 minutes.</p>`,
     }),
   });
   if (!response.ok) throw new Error('Failed to send evidence OTP');

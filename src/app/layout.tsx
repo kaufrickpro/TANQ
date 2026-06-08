@@ -25,8 +25,8 @@ const lato = Lato({
 
 export const metadata: Metadata = {
   title: {
-    default: "The African Nexus Quarterly",
-    template: "%s | The African Nexus Quarterly"
+    default: "African Nexus Quarterly",
+    template: "%s | African Nexus Quarterly"
   },
   description: "An interdisciplinary, peer-reviewed international academic journal focusing on political, economic, environmental, and human development issues in Africa.",
   keywords: ["academic journal", "African studies", "multidisciplinary research", "peer-reviewed", "open access"],

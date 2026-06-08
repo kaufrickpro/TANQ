@@ -119,8 +119,8 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center group">
             <Image 
-              src="/images/Tnq-Logo.png" 
-              alt="TANQ Logo" 
+              src="/images/ANQ-Logo-v2.png" 
+              alt="ANQ Logo" 
               width={132} 
               height={48} 
               className="object-contain hover:opacity-85 transition-opacity" 

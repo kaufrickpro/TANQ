@@ -53,10 +53,10 @@ export default async function Home() {
             {/* Left Column: Text Content */}
             <div className="md:col-span-8 space-y-5 text-left">
               <span className="text-[11px] font-sans font-bold uppercase tracking-[0.2em] text-text-heading block">
-                The African Nexus Quarterly
+                African Nexus Quarterly
               </span>
               <h1 className="text-5xl sm:text-6xl font-serif text-text-heading tracking-tight leading-none">
-                TANQ
+                ANQ
               </h1>
               <p className="text-sm sm:text-base text-text-primary/95 leading-relaxed font-serif max-w-[62ch]">
                 An interdisciplinary, peer-reviewed international academic journal dedicated to expanding knowledge democracy, structural curriculum transformations, and developmental partnerships concerning the African continent.
@@ -203,7 +203,7 @@ export default async function Home() {
                 Indexing & Abstracting
               </h3>
               <p className="text-xs text-text-muted leading-relaxed font-serif mb-4">
-                TANQ is actively aligning with global standards to seek indexing in core reference databases post-launch.
+                ANQ is actively aligning with global standards to seek indexing in core reference databases post-launch.
               </p>
               <div className="space-y-3 pt-2">
                 {indexingPartners.map(idx => (

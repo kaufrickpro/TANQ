@@ -26,7 +26,7 @@ export async function GET(
   return new NextResponse(blob.stream, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="tanq-evidence-${id}.zip"`,
+      'Content-Disposition': `attachment; filename="anq-evidence-${id}.zip"`,
       'Cache-Control': 'private, no-store, max-age=0',
     },
   });

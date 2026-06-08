@@ -72,7 +72,7 @@ const TOPICS = ['African Studies', 'Political Science', 'Economics', 'History', 
 const CHECKLIST_ITEMS = [
   'The manuscript has not been submitted elsewhere and is not under consideration by another journal.',
   'All author information has been removed from the blinded manuscript (no names in text, metadata, or headers).',
-  'The manuscript conforms to TANQ submission guidelines and formatting requirements.',
+  'The manuscript conforms to ANQ submission guidelines and formatting requirements.',
 ];
 
 const FILE_SLOTS = [

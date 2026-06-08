@@ -48,7 +48,7 @@ export default function About() {
           Focus and Scope
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          <em>The African Nexus Quarterly</em> is a Türkiye-based publication dedicated to exploring contemporary and historical issues concerning Africa from a multidisciplinary perspective. We welcome original, high-quality research that advances academic discourse and sheds light on the diverse and complex realities of the African continent. We encourage submissions from scholars in various fields.
+          <em>African Nexus Quarterly</em> is a Türkiye-based publication dedicated to exploring contemporary and historical issues concerning Africa from a multidisciplinary perspective. We welcome original, high-quality research that advances academic discourse and sheds light on the diverse and complex realities of the African continent. We encourage submissions from scholars in various fields.
         </p>
       </div>
 

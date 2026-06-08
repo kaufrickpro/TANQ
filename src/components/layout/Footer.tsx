@@ -11,8 +11,8 @@ export default function Footer() {
           <div className="md:col-span-6 space-y-4">
             <div className="flex items-center">
               <Image 
-                src="/images/Tnq-Logo-Footer.png" 
-                alt="TANQ Logo" 
+                src="/images/ANQ-Logo-Footer-v2.png" 
+                alt="ANQ Logo" 
                 width={100} 
                 height={36} 
                 className="object-contain" 
@@ -60,7 +60,7 @@ export default function Footer() {
               <span className="text-white/60">Diamond Open Access</span>
             </div>
             <p className="normal-case tracking-normal text-white/50 font-serif max-w-md text-center md:text-left text-xs leading-relaxed">
-              All articles published in TANQ are licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.
+              All articles published in ANQ are licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.
             </p>
           </div>
           <div className="text-right space-y-1">
@@ -69,7 +69,7 @@ export default function Footer() {
               Cover photo by Kévin et Laurianne Langlais
             </p>
             <p className="text-[10px] text-white/40 pt-1">
-              &copy; {new Date().getFullYear()} The African Nexus Quarterly.
+              &copy; {new Date().getFullYear()} African Nexus Quarterly.
             </p>
           </div>
         </div>

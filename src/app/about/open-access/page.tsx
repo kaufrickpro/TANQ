@@ -9,7 +9,7 @@ export default function OpenAccess() {
           Open Access Policy
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          <em>The African Nexus Quarterly</em> (TANQ) operates under a **Diamond Open Access** model. We believe in knowledge democracy and the barrier-free circulation of research findings to advance global scientific exchange.
+          <em>African Nexus Quarterly</em> (ANQ) operates under a **Diamond Open Access** model. We believe in knowledge democracy and the barrier-free circulation of research findings to advance global scientific exchange.
         </p>
       </div>
 
@@ -18,7 +18,7 @@ export default function OpenAccess() {
           <Award className="text-olive" size={20} />
           <h3 className="font-serif font-bold text-sm text-text-primary">No Author Fees (No APCs)</h3>
           <p className="text-xs text-text-muted leading-relaxed font-serif">
-            Authors are not required to pay any submission charges or Article Processing Charges (APCs). Publishing in TANQ is entirely free of cost for academic writers.
+            Authors are not required to pay any submission charges or Article Processing Charges (APCs). Publishing in ANQ is entirely free of cost for academic writers.
           </p>
         </div>
 

@@ -87,7 +87,7 @@ export default async function ArchivesPage() {
             id: 0,
             volume: issue.volume,
             year: issue.year,
-            title: `The African Nexus Quarterly, Volume ${issue.volume}`,
+            title: `African Nexus Quarterly, Volume ${issue.volume}`,
             subtitle: null,
             pdf_url: null
           },

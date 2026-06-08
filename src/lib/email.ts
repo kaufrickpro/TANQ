@@ -3,16 +3,16 @@
  */
 export async function sendVerificationEmail(email: string, name: string, otp: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'TANQ <onboarding@resend.dev>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <onboarding@resend.dev>';
   
-  const subject = 'Verify your TANQ Editorial Portal Account';
+  const subject = 'Verify your ANQ Editorial Portal Account';
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verify your TANQ Account</title>
+        <title>Verify your ANQ Account</title>
         <style>
           body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -81,21 +81,21 @@ export async function sendVerificationEmail(email: string, name: string, otp: st
       <body>
         <div class="container">
           <div class="header">
-            <h1>The African Nexus Quarterly</h1>
+            <h1>African Nexus Quarterly</h1>
           </div>
           <div class="content">
             <p>Dear ${name},</p>
-            <p>Thank you for registering an account on the TANQ Editorial Portal. To activate your Author account, please enter the following 6-digit verification code on the registration page:</p>
+            <p>Thank you for registering an account on the ANQ Editorial Portal. To activate your Author account, please enter the following 6-digit verification code on the registration page:</p>
             
             <div class="otp-container">
               <div class="otp-code">${otp}</div>
             </div>
             
             <p>This code will expire in 15 minutes. If you did not register for this account, please ignore this email.</p>
-            <p>Sincerely,<br>The TANQ Editorial Team</p>
+            <p>Sincerely,<br>The ANQ Editorial Team</p>
           </div>
           <div class="footer">
-            &copy; 2026 The African Nexus Quarterly (TANQ). All rights reserved.
+            &copy; 2026 African Nexus Quarterly (ANQ). All rights reserved.
           </div>
         </div>
       </body>
@@ -154,7 +154,7 @@ export async function sendWithdrawalRequestEmail(
   reason: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'TANQ <onboarding@resend.dev>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <onboarding@resend.dev>';
   const subject = `Withdrawal Request: "${submissionTitle}"`;
   const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>body{font-family:-apple-system,sans-serif;background:#f6f5f3;color:#333;margin:0;padding:0}
@@ -167,9 +167,9 @@ export async function sendWithdrawalRequestEmail(
     <p>A withdrawal request was submitted for:</p>
     <p><strong>Title:</strong> ${submissionTitle}<br><strong>Author:</strong> ${authorName}</p>
     <p><strong>Reason:</strong></p><div class="q">${reason}</div>
-    <p>Please log into the TANQ Editor Dashboard to approve or reject within 15 days.</p>
-    <p>Sincerely,<br>TANQ Automated System</p></div>
-    <div class="f">&copy; 2026 The African Nexus Quarterly (TANQ).</div></div></body></html>`;
+    <p>Please log into the ANQ Editor Dashboard to approve or reject within 15 days.</p>
+    <p>Sincerely,<br>ANQ Automated System</p></div>
+    <div class="f">&copy; 2026 African Nexus Quarterly (ANQ).</div></div></body></html>`;
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`\n[DEV] Withdrawal Request -> ${editorEmail}: "${submissionTitle}" by ${authorName}`);
@@ -198,7 +198,7 @@ export async function sendWithdrawalDecisionEmail(
   editorNote?: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'TANQ <onboarding@resend.dev>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <onboarding@resend.dev>';
   const isApproved = decision === 'approved';
   const subject = isApproved
     ? `Withdrawal Approved: "${submissionTitle}"`
@@ -215,8 +215,8 @@ export async function sendWithdrawalDecisionEmail(
     <p>Dear ${authorName},</p>
     <p>Your withdrawal request for <strong>"${submissionTitle}"</strong> has been <strong>${isApproved ? 'approved' : 'rejected'}</strong>.</p>
     ${isApproved ? '<p>The submission has been withdrawn. You may resubmit at any time.</p>' : '<p>Your manuscript remains in the review process.</p>'}
-    ${noteHtml}<p>Sincerely,<br>The TANQ Editorial Team</p></div>
-    <div class="f">&copy; 2026 The African Nexus Quarterly (TANQ).</div></div></body></html>`;
+    ${noteHtml}<p>Sincerely,<br>The ANQ Editorial Team</p></div>
+    <div class="f">&copy; 2026 African Nexus Quarterly (ANQ).</div></div></body></html>`;
 
   if (process.env.NODE_ENV !== 'production') {
     console.log(`\n[DEV] Withdrawal Decision -> ${authorEmail}: ${decision} for "${submissionTitle}"`);

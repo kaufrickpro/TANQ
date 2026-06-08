@@ -347,7 +347,7 @@ export default function SubmissionDetail({
                 />
                 <div className="bg-sand/10 border border-border-light rounded-sm p-3 mt-2 flex gap-2 items-start text-[10px] text-text-muted font-serif leading-normal">
                   <ShieldAlert className="text-olive shrink-0 mt-0.5" size={14} />
-                  <span>The final PDF will be uploaded to public storage. Verify that the file layout conforms to standard TANQ template formatting.</span>
+                  <span>The final PDF will be uploaded to public storage. Verify that the file layout conforms to standard ANQ template formatting.</span>
                 </div>
               </div>
             </div>

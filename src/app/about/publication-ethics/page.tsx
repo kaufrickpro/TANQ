@@ -32,7 +32,7 @@ export default function PublicationEthics() {
           Publication Ethics
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          <em>The African Nexus Quarterly</em> is committed to upholding the highest standards of publication ethics and academic integrity. We follow the guidelines established by the Committee on Publication Ethics (COPE) and require all authors, reviewers, and editors to comply with these ethical standards.
+          <em>African Nexus Quarterly</em> is committed to upholding the highest standards of publication ethics and academic integrity. We follow the guidelines established by the Committee on Publication Ethics (COPE) and require all authors, reviewers, and editors to comply with these ethical standards.
         </p>
       </div>
 

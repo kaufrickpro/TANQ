@@ -10,7 +10,7 @@ interface JournalCoverProps {
 }
 
 export default function JournalCover({
-  src = '/images/TANQ.png',
+  src = '/images/ANQ-Cover-v2.jpg',
   alt = 'Journal Cover',
   size = 'md',
   priority = false,
@@ -18,9 +18,9 @@ export default function JournalCover({
 }: JournalCoverProps) {
   // Sizing configurations
   const sizeClasses = {
-    sm: 'w-32 sm:w-36 aspect-[3/4]',
-    md: 'w-44 sm:w-52 aspect-[3/4]',
-    lg: 'w-52 sm:w-64 aspect-[3/4]',
+    sm: 'w-32 sm:w-36 aspect-[1/1.414]',
+    md: 'w-44 sm:w-52 aspect-[1/1.414]',
+    lg: 'w-52 sm:w-64 aspect-[1/1.414]',
   };
 
   // Adjust spine and page edge thickness based on size

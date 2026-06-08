@@ -69,7 +69,7 @@ export function useEditorDashboard() {
   const [showVolumePdf, setShowVolumePdf] = useState(false);
   const [volumePdfNumber, setVolumePdfNumber] = useState(1);
   const [volumePdfYear, setVolumePdfYear] = useState(new Date().getFullYear());
-  const [volumePdfTitle, setVolumePdfTitle] = useState('The African Nexus Quarterly, Volume 1');
+  const [volumePdfTitle, setVolumePdfTitle] = useState('African Nexus Quarterly, Volume 1');
   const [volumePdfSubtitle, setVolumePdfSubtitle] = useState('Complete journal volume');
   const [volumePdfFile, setVolumePdfFile] = useState<File | null>(null);
   const [uploadingVolumePdf, setUploadingVolumePdf] = useState(false);

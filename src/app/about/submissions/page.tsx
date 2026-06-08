@@ -34,7 +34,7 @@ export default function Submissions() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <a
-            href="/templates/The African Nexus Quarterly-TitlePageTemplate.docx"
+            href="/templates/African Nexus Quarterly-TitlePageTemplate.docx"
             download
             className="flex items-center gap-4 bg-bg-card p-4 border border-border-custom rounded-sm hover:border-olive hover:shadow-sm transition-all"
           >
@@ -48,7 +48,7 @@ export default function Submissions() {
           </a>
 
           <a
-            href="/templates/TANQ-Template-2026-ENG.docx"
+            href="/templates/ANQ-Template-2026-ENG.docx"
             download
             className="flex items-center gap-4 bg-bg-card p-4 border border-border-custom rounded-sm hover:border-olive hover:shadow-sm transition-all"
           >

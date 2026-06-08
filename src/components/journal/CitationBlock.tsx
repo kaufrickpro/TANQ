@@ -74,11 +74,11 @@ export default function CitationBlock({
 
     switch (format) {
       case 'APA':
-        return `${formattedAuthors} (${year}). ${cleanTitle}. The African Nexus Quarterly, ${volume}(${number}), ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors} (${year}). ${cleanTitle}. African Nexus Quarterly, ${volume}(${number}), ${pages}. https://doi.org/${doi}`;
       case 'MLA':
-        return `${formattedAuthors}. "${cleanTitle}." The African Nexus Quarterly, vol. ${volume}, no. ${number}, ${year}, pp. ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly, vol. ${volume}, no. ${number}, ${year}, pp. ${pages}. https://doi.org/${doi}`;
       case 'Chicago':
-        return `${formattedAuthors}. "${cleanTitle}." The African Nexus Quarterly ${volume}, no. ${number} (${year}): ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly ${volume}, no. ${number} (${year}): ${pages}. https://doi.org/${doi}`;
       default:
         return '';
     }

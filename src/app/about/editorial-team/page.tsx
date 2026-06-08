@@ -67,7 +67,7 @@ export default function EditorialTeam() {
           Editorial Board
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          The editorial board of <em>The African Nexus Quarterly</em> comprises distinguished scholars and researchers from institutions across Africa and Türkiye, guiding the academic standards and vision of the journal.
+          The editorial board of <em>African Nexus Quarterly</em> comprises distinguished scholars and researchers from institutions across Africa and Türkiye, guiding the academic standards and vision of the journal.
         </p>
       </div>
 
