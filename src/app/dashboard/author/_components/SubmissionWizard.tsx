@@ -254,9 +254,15 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
   // Step 2
   const [coAuthors, setCoAuthors] = useState<CoAuthor[]>(() => {
     if (initialDraft?.co_authors) {
-      return typeof initialDraft.co_authors === 'string'
-        ? JSON.parse(initialDraft.co_authors)
-        : initialDraft.co_authors;
+      try {
+        return typeof initialDraft.co_authors === 'string'
+          ? JSON.parse(initialDraft.co_authors)
+          : Array.isArray(initialDraft.co_authors)
+            ? initialDraft.co_authors
+            : [];
+      } catch {
+        return [];
+      }
     }
     return [];
   });
@@ -314,7 +320,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
 
   // ── Draft Save ────────────────────────────────────────────────────────────
 
-  const saveDraft = useCallback(async (currentStep: number) => {
+  const saveDraft = useCallback(async (currentStep: number): Promise<boolean> => {
     setSaving(true);
     setError('');
     try {
@@ -355,14 +361,16 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
           editor_note: noteToEditor,
         };
         const res = await fetch(`/api/submissions/${draftId}`, {
-          method: 'PATCH',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error('Could not save draft');
       }
+      return true;
     } catch (e: any) {
       setError(e.message || 'Error saving draft');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -374,8 +382,10 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     const err = validateStep(step);
     if (err) { setError(err); return; }
     setError('');
-    await saveDraft(step);
-    setStep(s => s + 1);
+    const ok = await saveDraft(step);
+    if (ok) {
+      setStep(s => s + 1);
+    }
   };
 
   const handleBack = () => {
