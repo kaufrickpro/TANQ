@@ -8,14 +8,14 @@ const issue = {
   number: 1,
   year: 2026,
   month: 'March',
-  title: 'The African Nexus Quarterly, Volume 1 Issue 1',
+  title: 'African Nexus Quarterly, Volume 1 Issue 1',
   issuePdfUrl: null as string | null
 };
 
 const volume = {
   volume: 1,
   year: 2026,
-  title: 'The African Nexus Quarterly, Volume 1',
+  title: 'African Nexus Quarterly, Volume 1',
   subtitle: 'Issue 01 · March 2026',
   pdfUrl: '/volumes/TANQ-Volume-1-2026.pdf'
 };
