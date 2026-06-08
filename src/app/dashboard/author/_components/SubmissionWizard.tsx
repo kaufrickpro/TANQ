@@ -67,7 +67,20 @@ const STEPS = [
 
 const SUBMISSION_TYPES = ['Research Article', 'Review Article', 'Editorial', 'Book Review', 'Case Study', 'Short Communication'];
 const LANGUAGES = ['English', 'French', 'Swahili', 'Arabic', 'Portuguese'];
-const TOPICS = ['African Studies', 'Political Science', 'Economics', 'History', 'Anthropology', 'Sociology', 'International Relations', 'Environmental Studies', 'Gender Studies', 'Public Health'];
+const TOPICS = [
+  'African Studies',
+  'Anthropology',
+  'Economics',
+  'Educational Sciences',
+  'Educational Studies',
+  'Environmental Studies',
+  'Gender Studies',
+  'History',
+  'International Relations',
+  'Political Science',
+  'Public Health',
+  'Sociology'
+];
 
 const CHECKLIST_ITEMS = [
   'The manuscript has not been submitted elsewhere and is not under consideration by another journal.',
