@@ -63,6 +63,30 @@ export default function AuthorGuidelines() {
             <li><strong>References:</strong> Alphabetical order by first author's last name, with hanging indent. All in-text citations must match reference entries. Include DOIs where available.</li>
           </ul>
         </section>
+
+        {/* Copyright and Licensing */}
+        <section className="space-y-3">
+          <h3 className="text-lg font-serif font-bold text-text-heading border-b border-border-light pb-1.5 uppercase tracking-wide">
+            4. Copyright and Licensing
+          </h3>
+          <p>
+            Authors retain copyright of their articles published in African Nexus Quarterly. By submitting and publishing in the journal, authors grant the journal the right of first publication.
+          </p>
+          <p>
+            All articles are published under the Creative Commons Attribution 4.0 International (CC BY 4.0) licence. Under this licence, anyone may copy, distribute, remix, adapt, and build upon the material for any purpose, including commercial purposes, provided appropriate credit is given to the original author(s) and the journal.
+          </p>
+          <p>
+            The full licence text is available at:{' '}
+            <a
+              href="https://creativecommons.org/licenses/by/4.0/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-link hover:text-link-hover hover:underline transition-colors break-all"
+            >
+              https://creativecommons.org/licenses/by/4.0/
+            </a>
+          </p>
+        </section>
       </div>
     </div>
   );
