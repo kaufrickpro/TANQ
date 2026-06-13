@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FilePlus, FileText, RefreshCw, CheckCircle, AlertCircle, X as CloseIcon, Edit3, X } from 'lucide-react';
+import { FilePlus, FileText, RefreshCw, CheckCircle, AlertCircle, X as CloseIcon, Edit3, X, ArrowRight, Clock3 } from 'lucide-react';
 import SubmissionWizard from './_components/SubmissionWizard';
 import WithdrawalModal from './_components/WithdrawalModal';
+import RevisionResponsePanel from './_components/RevisionResponsePanel';
 import CaseFilePanel from '@/components/case-files/CaseFilePanel';
+import DiscussionPanel from '@/components/DiscussionPanel';
+import StatusProgressBar, { getMilestoneLabel } from '@/components/StatusProgressBar';
 
 interface Submission {
   id: number;
@@ -17,6 +20,9 @@ interface Submission {
   download_url: string | null;
   file_name: string;
   status: string;
+  current_stage?: string | null;
+  current_stage_deadline?: string | null;
+  current_round_id?: number | null;
   date_submitted: string;
   withdrawal_status?: string | null;
   submission_type?: string;
@@ -56,6 +62,8 @@ const WITHDRAWABLE_STATUSES = [
   'submitted', 'secretary_check', 'editor_screening', 'in_review', 'under_review',
   'editor_decision', 'revision_requested', 'author_revision',
 ];
+
+const stageOf = (submission: Submission) => submission.current_stage || submission.status;
 
 export default function AuthorDashboard() {
   const router = useRouter();
@@ -189,6 +197,9 @@ export default function AuthorDashboard() {
   // Separate drafts from active submissions
   const drafts = submissions.filter(s => s.status === 'draft');
   const active = submissions.filter(s => s.status !== 'draft');
+  const actionRequired = active.filter((submission) =>
+    ['revision_requested', 'author_revision', 'production'].includes(stageOf(submission)),
+  );
 
   return (
     <>
@@ -256,6 +267,38 @@ export default function AuthorDashboard() {
           </div>
         )}
 
+        {actionRequired.length > 0 && (
+          <section className="rounded-sm border border-charcoal bg-charcoal p-5 text-white shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-sans text-[9px] font-bold uppercase tracking-[0.2em] text-sand/75">Action required</p>
+                <h2 className="mt-1 font-serif text-lg font-bold">
+                  {actionRequired.length} manuscript{actionRequired.length === 1 ? '' : 's'} need your attention
+                </h2>
+              </div>
+              <Clock3 size={20} className="text-sand" />
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {actionRequired.map((submission) => (
+                <button
+                  key={submission.id}
+                  type="button"
+                  onClick={() => setExpandedSubmissionId(submission.id)}
+                  className="flex min-h-16 items-center justify-between gap-3 rounded-sm border border-white/15 bg-white/5 px-4 py-3 text-left transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-sand"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-serif text-sm font-bold">{submission.title}</span>
+                    <span className="mt-1 block font-sans text-[8px] font-bold uppercase tracking-wider text-sand/75">
+                      {getMilestoneLabel(stageOf(submission))}
+                    </span>
+                  </span>
+                  <ArrowRight size={14} className="shrink-0 text-sand" />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Drafts section */}
         {drafts.length > 0 && (
           <div className="space-y-3">
@@ -307,8 +350,9 @@ export default function AuthorDashboard() {
               </p>
             </div>
           ) : (
-            active.map(sub => (
-              <div
+            active.map(sub => {
+              const stage = stageOf(sub);
+              return <div
                 key={sub.id}
                 className="bg-bg-card border border-border-custom border-l-4 border-l-olive p-6 rounded-sm hover:shadow-sm transition-shadow duration-200 space-y-3 relative overflow-hidden"
               >
@@ -327,8 +371,8 @@ export default function AuthorDashboard() {
                         Withdrawal Pending
                       </span>
                     )}
-                    <span className={`text-[9px] uppercase font-sans font-bold tracking-widest px-2.5 py-0.5 rounded-sm border ${STATUS_COLORS[sub.status] || STATUS_COLORS.submitted}`}>
-                      {sub.status.replace(/_/g, ' ')}
+                    <span className={`text-[9px] uppercase font-sans font-bold tracking-widest px-2.5 py-0.5 rounded-sm border ${STATUS_COLORS[stage] || STATUS_COLORS.submitted}`}>
+                      {getMilestoneLabel(stage)}
                     </span>
                     {sub.withdrawal_status !== 'requested' && (
                       <button
@@ -363,6 +407,10 @@ export default function AuthorDashboard() {
 
                 <p className="text-sm text-text-primary/80 line-clamp-2 leading-relaxed font-serif pt-1">{sub.abstract}</p>
 
+                <div className="border-t border-border-light pt-3">
+                  <StatusProgressBar currentStage={stage} />
+                </div>
+
                 {expandedSubmissionId === sub.id && (
                   <div className="mt-4 pt-4 border-t border-border-light space-y-4 bg-sand/5 p-4 rounded-sm">
                     <div className="flex items-center justify-between border-b border-border-light pb-2">
@@ -388,10 +436,16 @@ export default function AuthorDashboard() {
                       </div>
                     )}
 
+                    {['revision_requested', 'author_revision'].includes(stage) && (
+                      <RevisionResponsePanel submissionId={sub.id} />
+                    )}
+
+                    <DiscussionPanel submissionId={sub.id} role="author" />
+
                     <CaseFilePanel submissionId={sub.id} role="author" />
 
                     {/* Compatibility upload form */}
-                    {(sub.status === 'submitted' || sub.status === 'revision_requested' || sub.status === 'author_revision') && <form onSubmit={(e) => handleReplaceFile(e, sub.id)} className="space-y-3">
+                    {(['submitted', 'revision_requested', 'author_revision'].includes(stage)) && <form onSubmit={(e) => handleReplaceFile(e, sub.id)} className="space-y-3">
                       <div>
                         <label className="block text-[10px] block font-bold uppercase tracking-wider text-text-muted mb-1.5">Upload New Blinded Manuscript Version (Word / PDF)</label>
                         <div className="flex gap-2">
@@ -422,7 +476,7 @@ export default function AuthorDashboard() {
                 )}
 
                 {/* Withdraw button — only if status allows and not already requested */}
-                {WITHDRAWABLE_STATUSES.includes(sub.status) && sub.withdrawal_status !== 'requested' && (
+                {WITHDRAWABLE_STATUSES.includes(stage) && sub.withdrawal_status !== 'requested' && (
                   <div className="flex justify-end pt-1">
                     <button
                       onClick={() => setWithdrawSub(sub)}
@@ -432,8 +486,8 @@ export default function AuthorDashboard() {
                     </button>
                   </div>
                 )}
-              </div>
-            ))
+              </div>;
+            })
           )}
         </div>
       </div>

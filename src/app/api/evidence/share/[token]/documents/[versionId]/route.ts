@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { get } from '@vercel/blob';
+import { get } from '@/lib/blob';
 import db from '@/lib/db';
 import { getClientIp } from '@/lib/rateLimit';
 import { verifyEvidenceAccessToken } from '@/lib/case-files/evidence';

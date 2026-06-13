@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import db from '@/lib/db';
 import crypto from 'crypto';
+import DashboardShell from '@/components/DashboardShell';
 
 export default async function AuthorLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -12,7 +13,7 @@ export default async function AuthorLayout({ children }: { children: React.React
 
   const tokenHash = crypto.createHash('sha256').update(tokenCookie.value).digest('hex');
   const sessionResult = await db`
-    SELECT s.expires_at, s.revoked_at, u.role, u.is_disabled, u.is_verified
+    SELECT s.expires_at, s.revoked_at, u.role, u.name, u.is_disabled, u.is_verified
     FROM auth_sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token_hash = ${tokenHash}
@@ -33,5 +34,5 @@ export default async function AuthorLayout({ children }: { children: React.React
     redirect('/dashboard/login');
   }
 
-  return <>{children}</>;
+  return <DashboardShell role="author" userName={session.name}>{children}</DashboardShell>;
 }

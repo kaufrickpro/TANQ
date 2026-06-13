@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { sendWithdrawalDecisionEmail } from '@/lib/email';
 import { appendSubmissionEvent } from '@/lib/case-files/audit';
+import { setSubmissionDeadline } from '@/lib/deadlines';
 
 export async function POST(
   request: Request,
@@ -78,6 +79,7 @@ export async function POST(
               closed_at = NOW(), closed_reason = ${editorNote || wr.reason}, lock_version = lock_version + 1
           WHERE id = ${submissionId}
         `;
+        await setSubmissionDeadline(client, submissionId, 'withdrawn');
       } else {
         await client.sql`
           UPDATE submissions

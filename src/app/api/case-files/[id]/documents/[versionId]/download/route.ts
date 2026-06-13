@@ -34,10 +34,24 @@ export async function GET(
   }
   const blob = await streamPrivateVersion(version);
   if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: 'File not found' }, { status: 404 });
+
+  let downloadFilename = version.original_filename;
+  const uploaderRole = version.uploaded_by_role;
+  const uploaderUserId = version.uploaded_by_user_id ? Number(version.uploaded_by_user_id) : null;
+
+  const shouldAnonymizeAuthor = (session.role === 'reviewer' && uploaderRole === 'author');
+  const shouldAnonymizeReviewer = (session.role === 'author' && uploaderRole === 'reviewer') ||
+                                  (session.role === 'reviewer' && uploaderRole === 'reviewer' && uploaderUserId !== session.id);
+
+  if (shouldAnonymizeAuthor || shouldAnonymizeReviewer) {
+    const ext = version.original_filename.split('.').pop()?.toLowerCase() || 'bin';
+    downloadFilename = `${version.kind}_v${version.version_number}.${ext}`;
+  }
+
   return new NextResponse(blob.stream, {
     headers: {
       'Content-Type': blob.blob.contentType || version.content_type,
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(version.original_filename)}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(downloadFilename)}`,
       'Cache-Control': 'private, no-store, max-age=0',
       'X-Content-Type-Options': 'nosniff',
     },

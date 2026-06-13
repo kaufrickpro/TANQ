@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { del } from '@vercel/blob';
+import { del } from '@/lib/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { createSubmittedCaseFile, uploadDocumentVersion } from '@/lib/case-files/documents';
@@ -67,10 +67,12 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       const result = await db`
-        SELECT 
+        SELECT
           s.id, s.title, s.abstract, s.keywords, s.author_name, s.author_email, s.file_path, s.status,
           s.current_stage, s.date_submitted,
-          ra.id AS review_id, ra.reviewer_name, ra.reviewer_email, ra.status AS assignment_status,
+          ra.id AS review_id, ra.reviewer_name, ra.reviewer_email,
+          ra.status AS assignment_status,
+          ra.review_deadline, ra.invitation_sent_at, ra.invitation_expires_at, ra.is_alternate,
           rp.comments_to_author AS comments, rp.recommendation, rp.score, rp.submitted_at AS date_reviewed,
           dv.id AS assigned_version_id, dv.original_filename AS assigned_file_name
         FROM submissions s
@@ -79,7 +81,7 @@ export async function GET(request: Request) {
         JOIN document_versions dv ON dv.id = rr.manuscript_version_id
         LEFT JOIN review_reports rp ON rp.assignment_id = ra.id
         WHERE TRIM(LOWER(ra.reviewer_email)) = TRIM(LOWER(${email}))
-          AND ra.status != 'cancelled'
+          AND ra.status IN ('invited', 'alternate', 'assigned', 'accepted', 'submitted')
         ORDER BY s.id DESC
       `;
       if (result.rows.length === 0) {
@@ -103,10 +105,19 @@ export async function GET(request: Request) {
       return NextResponse.json(result.rows.map(row => {
         const mapped = mapSubmission(row);
         if (mapped) {
+          // Single-blind: reviewer sees title/abstract but not author identity
           delete (mapped as any).author_name;
           delete (mapped as any).author_email;
-          mapped.file_name = row.assigned_file_name;
-          mapped.download_url = `/api/case-files/${row.id}/documents/${row.assigned_version_id}/download`;
+          // Overlay manuscript version fields for active/completed assignments
+          if (row.assigned_version_id) {
+            mapped.file_name = row.assigned_file_name;
+            mapped.download_url = `/api/case-files/${row.id}/documents/${row.assigned_version_id}/download`;
+          }
+          // Surface invitation & deadline fields for folder grouping
+          mapped.review_deadline = row.review_deadline ?? null;
+          mapped.invitation_sent_at = row.invitation_sent_at ?? null;
+          mapped.invitation_expires_at = row.invitation_expires_at ?? null;
+          mapped.is_alternate = row.is_alternate ?? false;
         }
         return mapped;
       }));

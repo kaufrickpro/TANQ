@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { sendWithdrawalRequestEmail } from '@/lib/email';
 import { appendSubmissionEvent } from '@/lib/case-files/audit';
+import { setSubmissionDeadline } from '@/lib/deadlines';
 
 // Statuses where the author can INSTANTLY withdraw (no editor approval needed)
 const INSTANT_WITHDRAW_STATUSES = ['submitted'];
@@ -86,6 +87,7 @@ export async function POST(
               closed_at = NOW(), closed_reason = ${reason.trim()}, lock_version = lock_version + 1
           WHERE id = ${submissionId}
         `;
+        await setSubmissionDeadline(client, submissionId, 'withdrawn');
         await appendSubmissionEvent(client, {
           submissionId,
           eventType: 'submission_withdrawn',

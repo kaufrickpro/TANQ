@@ -1,7 +1,9 @@
 import 'server-only';
 import crypto from 'crypto';
-import { del, get, head, put } from '@vercel/blob';
+import { del, get, head, put } from '@/lib/blob';
 import db from '@/lib/db';
+import { setSubmissionDeadline } from '@/lib/deadlines';
+import { queueNotification } from '@/lib/notifications';
 import { appendSubmissionEvent } from './audit';
 import type {
   CaseFileActor,
@@ -249,6 +251,17 @@ export async function createSubmittedCaseFile(input: {
         summary: 'The author submitted the manuscript case file.',
         payload: { documentCount: uploaded.length },
       });
+      await setSubmissionDeadline(client, submissionId, 'submitted');
+      await queueNotification({
+        templateKey: 'submission_received',
+        recipientEmail: input.metadata.authorEmail,
+        submissionId,
+        dedupeKey: `submission-received:${submissionId}`,
+        variables: {
+          author_name: input.metadata.authorName,
+          submission_title: input.metadata.title.trim(),
+        },
+      }, client);
       await client.sql`COMMIT`;
       return submissionId;
     } catch (error) {
@@ -336,7 +349,7 @@ export async function uploadDocumentVersion(input: {
         WHERE ra.submission_id = ${input.submissionId}
           AND ra.review_round_id = ${input.reviewRoundId}
           AND LOWER(TRIM(ra.reviewer_email)) = LOWER(TRIM(${input.actor.email}))
-          AND ra.status = 'assigned'
+          AND ra.status IN ('assigned', 'accepted')
           AND rr.status = 'open'
         LIMIT 1
       `;

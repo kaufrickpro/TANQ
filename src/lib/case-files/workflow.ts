@@ -1,5 +1,6 @@
 import 'server-only';
 import db from '@/lib/db';
+import { setSubmissionDeadline } from '@/lib/deadlines';
 import { appendSubmissionEvent } from './audit';
 import type { CaseFileActor, SubmissionStage } from './types';
 
@@ -77,6 +78,7 @@ export async function transitionSubmission(input: {
           closed_reason = CASE WHEN ${input.toStage} IN ('rejected','withdrawn') THEN ${input.summary} ELSE closed_reason END
       WHERE id = ${input.submissionId}
     `;
+    await setSubmissionDeadline(client, input.submissionId, input.toStage);
 
     await appendSubmissionEvent(client, {
       submissionId: input.submissionId,

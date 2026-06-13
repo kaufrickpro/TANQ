@@ -14,6 +14,8 @@ interface Article {
   pdf_url: string;
   type: string;
   date_published: string;
+  volume: number;
+  number: number;
 }
 
 export const revalidate = 60; // Revalidate every minute
@@ -23,9 +25,10 @@ export default async function Home() {
   let articles: Article[] = [];
   try {
     const articlesResult = await db`
-      SELECT id, title, authors, abstract, doi, pages, pdf_url, type, date_published 
-      FROM articles 
-      ORDER BY id ASC
+      SELECT a.id, a.title, a.authors, a.abstract, a.doi, a.pages, a.pdf_url, a.type, a.date_published, i.volume, i.number
+      FROM articles a
+      JOIN issues i ON a.issue_id = i.id
+      ORDER BY a.id ASC
     `;
     articles = articlesResult.rows as Article[];
   } catch (e) {
@@ -116,7 +119,7 @@ export default async function Home() {
                         {article.type}
                       </span>
                       <h3 className="font-serif font-bold text-lg text-text-primary hover:text-link transition-colors mb-2">
-                        <Link href={`/article/${article.id}`}>{article.title}</Link>
+                        <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`}>{article.title}</Link>
                       </h3>
                       <p className="text-xs text-text-heading italic mb-4 font-serif">{article.authors}</p>
                       <p className="text-sm text-text-primary/80 line-clamp-3 mb-4 leading-relaxed font-serif">
@@ -125,7 +128,7 @@ export default async function Home() {
                       <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
                         <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
                         <div className="flex gap-4 shrink-0">
-                          <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
+                          <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
                           <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>
@@ -151,7 +154,7 @@ export default async function Home() {
                         {article.type}
                       </span>
                       <h3 className="font-serif font-bold text-lg text-text-primary hover:text-link transition-colors mb-2">
-                        <Link href={`/article/${article.id}`}>{article.title}</Link>
+                        <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`}>{article.title}</Link>
                       </h3>
                       <p className="text-xs text-text-heading italic mb-4 font-serif">{article.authors}</p>
                       <p className="text-sm text-text-primary/80 line-clamp-3 mb-4 leading-relaxed font-serif">
@@ -160,7 +163,7 @@ export default async function Home() {
                       <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
                         <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
                         <div className="flex gap-4 shrink-0">
-                          <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
+                          <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
                           <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>

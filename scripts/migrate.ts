@@ -2,6 +2,171 @@ import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 import crypto from 'crypto';
 
+const DEFAULT_EMAIL_TEMPLATES = [
+  {
+    key: 'submission_received',
+    subject: 'Submission received: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>We received your submission, <strong>{{submission_title}}</strong>.</p><p>The ANQ Editorial Team</p>',
+    description: 'Confirms receipt of a new submission to the author.',
+    variables: ['author_name', 'submission_title'],
+  },
+  {
+    key: 'submission_desk_rejected',
+    subject: 'Editorial decision: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your submission, <strong>{{submission_title}}</strong>, will not proceed to peer review.</p><p>{{decision_letter}}</p><p>The ANQ Editorial Team</p>',
+    description: 'Notifies an author of a desk rejection.',
+    variables: ['author_name', 'submission_title', 'decision_letter'],
+  },
+  {
+    key: 'reviewer_invitation',
+    subject: 'Review invitation: {{submission_title}}',
+    body: '<p>Dear {{reviewer_name}},</p><p>You are invited to review <strong>{{submission_title}}</strong>.</p><p>Please respond by following this link: <a href="{{invitation_url}}">{{invitation_url}}</a></p><p>Review deadline: {{review_deadline}}</p>',
+    description: 'Invites a reviewer to accept or decline an assignment.',
+    variables: ['reviewer_name', 'submission_title', 'invitation_url', 'review_deadline'],
+  },
+  {
+    key: 'reviewer_invitation_response',
+    subject: 'Reviewer {{response}}: {{submission_title}}',
+    body: '<p>Dear {{editor_name}},</p><p>{{reviewer_name}} responded <strong>{{response}}</strong> to the review invitation for <strong>{{submission_title}}</strong>.</p>',
+    description: 'Notifies an editor when a reviewer accepts or declines an invitation.',
+    variables: ['editor_name', 'reviewer_name', 'submission_title', 'response'],
+  },
+  {
+    key: 'reviewer_reminder',
+    subject: 'Review reminder: {{submission_title}}',
+    body: '<p>Dear {{reviewer_name}},</p><p>This is a reminder that your review of <strong>{{submission_title}}</strong> is due on {{review_deadline}}.</p>',
+    description: 'Reminds a reviewer of an upcoming deadline.',
+    variables: ['reviewer_name', 'submission_title', 'review_deadline'],
+  },
+  {
+    key: 'reviewer_urgent_reminder',
+    subject: 'Overdue review: {{submission_title}}',
+    body: '<p>Dear {{reviewer_name}},</p><p>Your review of <strong>{{submission_title}}</strong> was due on {{review_deadline}}. Please submit it as soon as possible.</p>',
+    description: 'Escalates an overdue review.',
+    variables: ['reviewer_name', 'submission_title', 'review_deadline'],
+  },
+  {
+    key: 'review_submitted',
+    subject: 'Review submitted: {{submission_title}}',
+    body: '<p>Dear {{editor_name}},</p><p>{{reviewer_name}} submitted a review for <strong>{{submission_title}}</strong>.</p>',
+    description: 'Notifies an editor that a review was submitted.',
+    variables: ['editor_name', 'reviewer_name', 'submission_title'],
+  },
+  {
+    key: 'all_reviews_complete',
+    subject: 'All reviews complete: {{submission_title}}',
+    body: '<p>Dear {{editor_name}},</p><p>All assigned reviews for <strong>{{submission_title}}</strong> are complete and ready for an editorial decision.</p>',
+    description: 'Notifies an editor that a review round is ready for decision.',
+    variables: ['editor_name', 'submission_title'],
+  },
+  {
+    key: 'decision_minor_revision',
+    subject: 'Minor revision requested: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>A minor revision has been requested for <strong>{{submission_title}}</strong>.</p><p>{{decision_letter}}</p>',
+    description: 'Sends a minor-revision decision to an author.',
+    variables: ['author_name', 'submission_title', 'decision_letter'],
+  },
+  {
+    key: 'decision_major_revision',
+    subject: 'Major revision requested: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>A major revision has been requested for <strong>{{submission_title}}</strong>.</p><p>{{decision_letter}}</p>',
+    description: 'Sends a major-revision decision to an author.',
+    variables: ['author_name', 'submission_title', 'decision_letter'],
+  },
+  {
+    key: 'decision_accept',
+    subject: 'Submission accepted: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your submission, <strong>{{submission_title}}</strong>, has been accepted.</p><p>{{decision_letter}}</p>',
+    description: 'Sends an acceptance decision to an author.',
+    variables: ['author_name', 'submission_title', 'decision_letter'],
+  },
+  {
+    key: 'decision_reject',
+    subject: 'Editorial decision: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your submission, <strong>{{submission_title}}</strong>, has been rejected.</p><p>{{decision_letter}}</p>',
+    description: 'Sends a rejection decision to an author.',
+    variables: ['author_name', 'submission_title', 'decision_letter'],
+  },
+  {
+    key: 'revision_received',
+    subject: 'Revision received: {{submission_title}}',
+    body: '<p>Dear {{editor_name}},</p><p>{{author_name}} submitted a revision for <strong>{{submission_title}}</strong>.</p>',
+    description: 'Notifies an editor that an author revision was submitted.',
+    variables: ['editor_name', 'author_name', 'submission_title'],
+  },
+  {
+    key: 'production_ready',
+    subject: 'Proofs ready: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Proofs for <strong>{{submission_title}}</strong> are ready: <a href="{{proof_url}}">{{proof_url}}</a></p>',
+    description: 'Notifies an author that proofs are ready.',
+    variables: ['author_name', 'submission_title', 'proof_url'],
+  },
+  {
+    key: 'article_published',
+    subject: 'Article published: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your article, <strong>{{submission_title}}</strong>, is published: <a href="{{article_url}}">{{article_url}}</a></p>',
+    description: 'Notifies an author that an article was published.',
+    variables: ['author_name', 'submission_title', 'article_url'],
+  },
+  {
+    key: 'deadline_reminder',
+    subject: 'Deadline reminder: {{submission_title}}',
+    body: '<p>Dear {{recipient_name}},</p><p>The {{stage}} deadline for <strong>{{submission_title}}</strong> is {{deadline}}.</p>',
+    description: 'Generic reminder for a submission workflow deadline.',
+    variables: ['recipient_name', 'submission_title', 'stage', 'deadline'],
+  },
+  {
+    key: 'discussion_message',
+    subject: 'Discussion updated: {{discussion_subject}}',
+    body: '<p>Discussion {{discussion_id}} ({{discussion_subject}}) was updated: {{discussion_action}}</p>',
+    description: 'Notifies participants about a new discussion message.',
+    variables: ['discussion_id', 'discussion_subject', 'discussion_action'],
+  },
+  {
+    key: 'discussion_closed',
+    subject: 'Discussion closed: {{discussion_subject}}',
+    body: '<p>Discussion {{discussion_id}} ({{discussion_subject}}) was closed: {{discussion_action}}</p>',
+    description: 'Notifies participants that a discussion was closed.',
+    variables: ['discussion_id', 'discussion_subject', 'discussion_action'],
+  },
+  {
+    key: 'withdrawal_request',
+    subject: 'Withdrawal request: {{submission_title}}',
+    body: '<p>A withdrawal request was submitted for <strong>{{submission_title}}</strong> by {{author_name}}.</p><p>Reason: {{reason}}</p><p>Please review it in the ANQ Editor Dashboard.</p>',
+    description: 'Notifies the editorial team of an author withdrawal request.',
+    variables: ['author_name', 'submission_title', 'reason'],
+  },
+  {
+    key: 'withdrawal_approved',
+    subject: 'Withdrawal approved: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your withdrawal request for <strong>{{submission_title}}</strong> has been approved.</p><p>{{editor_note}}</p>',
+    description: 'Notifies an author that a withdrawal was approved.',
+    variables: ['author_name', 'submission_title', 'editor_note'],
+  },
+  {
+    key: 'withdrawal_rejected',
+    subject: 'Withdrawal rejected: {{submission_title}}',
+    body: '<p>Dear {{author_name}},</p><p>Your withdrawal request for <strong>{{submission_title}}</strong> has been rejected and the manuscript remains in review.</p><p>{{editor_note}}</p>',
+    description: 'Notifies an author that a withdrawal was rejected.',
+    variables: ['author_name', 'submission_title', 'editor_note'],
+  },
+] as const;
+
+const DEFAULT_DEADLINE_CONFIGS = [
+  { stage: 'secretary_check', role: 'secretary', defaultDays: 3, reminderDays: [1] },
+  { stage: 'editor_screening', role: 'editor', defaultDays: 7, reminderDays: [3, 1] },
+  {
+    stage: 'under_review',
+    role: 'reviewer',
+    defaultDays: 21,
+    reminderDays: [7, 3, 1],
+    autoEscalationAction: 'auto_uninvite_reviewer',
+  },
+  { stage: 'editor_decision', role: 'editor', defaultDays: 7, reminderDays: [3, 1] },
+  { stage: 'author_revision', role: 'author', defaultDays: 30, reminderDays: [14, 7, 3] },
+  { stage: 'production', role: 'editor', defaultDays: 14, reminderDays: [7, 3] },
+] as const;
+
 async function migrate() {
   console.log('🚀 Running TANQ database migration...\n');
   const { sql } = await import('@vercel/postgres');
@@ -63,16 +228,26 @@ async function migrate() {
   `;
 
   console.log('Updating users role constraint for separated editorial roles...');
-  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`;
   await sql`
-    ALTER TABLE users ADD CONSTRAINT users_role_check
-      CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer', 'author'));
+    ALTER TABLE users 
+      DROP CONSTRAINT IF EXISTS users_role_check,
+      ADD CONSTRAINT users_role_check CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer', 'author'));
   `;
 
   console.log('Adding columns to users table...');
   await sql`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN DEFAULT FALSE;
   `;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS expertise_keywords TEXT[] NOT NULL DEFAULT '{}';`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS institution TEXT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS orcid_id TEXT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reviewer_availability BOOLEAN NOT NULL DEFAULT TRUE;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avg_review_days NUMERIC;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_reviews_completed INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_avg_review_days_check;`;
+  await sql`ALTER TABLE users ADD CONSTRAINT users_avg_review_days_check CHECK(avg_review_days IS NULL OR avg_review_days >= 0);`;
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_total_reviews_completed_check;`;
+  await sql`ALTER TABLE users ADD CONSTRAINT users_total_reviews_completed_check CHECK(total_reviews_completed >= 0);`;
 
   console.log('Creating case-insensitive unique indexes for users table...');
   await sql`
@@ -81,6 +256,8 @@ async function migrate() {
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
   `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_users_reviewer_availability ON users(role, reviewer_availability) WHERE role = 'reviewer';`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_users_expertise_keywords ON users USING GIN(expertise_keywords);`;
 
   console.log('Creating table if not exists: invitations');
   await sql`
@@ -94,10 +271,10 @@ async function migrate() {
     );
   `;
 
-  await sql`ALTER TABLE invitations DROP CONSTRAINT IF EXISTS invitations_role_check;`;
   await sql`
-    ALTER TABLE invitations ADD CONSTRAINT invitations_role_check
-      CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer'));
+    ALTER TABLE invitations 
+      DROP CONSTRAINT IF EXISTS invitations_role_check,
+      ADD CONSTRAINT invitations_role_check CHECK(role IN ('admin', 'editor', 'secretary', 'reviewer'));
   `;
 
   console.log('Adding columns to invitations table...');
@@ -249,11 +426,9 @@ async function migrate() {
   // Drop the old status CHECK constraint if it exists (so we can add the new one)
   console.log('Updating submissions status CHECK constraint for case-file workflow...');
   await sql`
-    ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_status_check;
-  `;
-  await sql`
-    ALTER TABLE submissions ADD CONSTRAINT submissions_status_check
-      CHECK(status IN (
+    ALTER TABLE submissions 
+      DROP CONSTRAINT IF EXISTS submissions_status_check,
+      ADD CONSTRAINT submissions_status_check CHECK(status IN (
         'draft','submitted','secretary_check','editor_screening','in_review','under_review',
         'editor_decision','revision_requested','author_revision','accepted','production',
         'rejected','published','withdrawn'
@@ -290,6 +465,8 @@ async function migrate() {
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS closed_reason TEXT;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_stage_deadline TIMESTAMPTZ;`;
+  await sql`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_stage_entered_at TIMESTAMPTZ;`;
   await sql`UPDATE submissions SET current_stage = status WHERE current_stage IS NULL;`;
   await sql`UPDATE submissions SET public_id = gen_random_uuid() WHERE public_id IS NULL;`;
   await sql`ALTER TABLE submissions ALTER COLUMN public_id SET NOT NULL;`;
@@ -311,6 +488,12 @@ async function migrate() {
     WHERE submitted_at IS NULL AND status != 'draft';
   `;
   await sql`
+    UPDATE submissions
+    SET current_stage_entered_at = COALESCE(submitted_at, NOW())
+    WHERE current_stage_entered_at IS NULL;
+  `;
+  await sql`ALTER TABLE submissions ALTER COLUMN current_stage_entered_at SET DEFAULT NOW();`;
+  await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_submissions_public_id
       ON submissions(public_id);
   `;
@@ -321,6 +504,11 @@ async function migrate() {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_submissions_current_stage
       ON submissions(current_stage, id DESC);
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_submissions_stage_deadline
+      ON submissions(current_stage_deadline, current_stage)
+      WHERE current_stage_deadline IS NOT NULL;
   `;
 
   console.log('Creating table if not exists: withdrawal_requests');
@@ -467,6 +655,26 @@ async function migrate() {
       UNIQUE(review_round_id, reviewer_email)
     );
   `;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS invitation_token_hash TEXT;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS invitation_sent_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS invitation_expires_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS response_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS decline_reason TEXT;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS coi_declaration TEXT;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS coi_declared BOOLEAN NOT NULL DEFAULT FALSE;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS review_deadline TIMESTAMPTZ;`;
+  await sql`ALTER TABLE review_assignments ADD COLUMN IF NOT EXISTS is_alternate BOOLEAN NOT NULL DEFAULT FALSE;`;
+  await sql`
+    ALTER TABLE review_assignments 
+      DROP CONSTRAINT IF EXISTS review_assignments_status_check,
+      ADD CONSTRAINT review_assignments_status_check CHECK(status IN (
+        'assigned','invited','accepted','declined','expired','alternate','submitted','cancelled'
+      ));
+  `;
+  await sql`ALTER TABLE review_assignments DROP CONSTRAINT IF EXISTS review_assignments_reminder_count_check;`;
+  await sql`ALTER TABLE review_assignments ADD CONSTRAINT review_assignments_reminder_count_check CHECK(reminder_count >= 0);`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS review_reports (
@@ -599,6 +807,18 @@ async function migrate() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id                    BIGSERIAL PRIMARY KEY,
+      template_key          TEXT NOT NULL UNIQUE,
+      subject               TEXT NOT NULL,
+      body_html             TEXT NOT NULL,
+      description           TEXT,
+      variables             TEXT[] NOT NULL DEFAULT '{}',
+      updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS notification_outbox (
       id                    BIGSERIAL PRIMARY KEY,
       submission_id         INTEGER REFERENCES submissions(id) ON DELETE RESTRICT,
@@ -611,6 +831,86 @@ async function migrate() {
       last_error            TEXT,
       created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       sent_at               TIMESTAMPTZ
+    );
+  `;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS rendered_subject TEXT;`;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS rendered_html TEXT;`;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS dedupe_key TEXT;`;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS available_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS locked_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE notification_outbox ADD COLUMN IF NOT EXISTS provider_message_id TEXT;`;
+  await sql`UPDATE notification_outbox SET available_at = created_at WHERE available_at IS NULL;`;
+  await sql`ALTER TABLE notification_outbox ALTER COLUMN available_at SET DEFAULT NOW();`;
+  await sql`ALTER TABLE notification_outbox ALTER COLUMN available_at SET NOT NULL;`;
+  await sql`UPDATE notification_outbox SET attempts = 0 WHERE attempts IS NULL;`;
+  await sql`ALTER TABLE notification_outbox ALTER COLUMN attempts SET DEFAULT 0;`;
+  await sql`ALTER TABLE notification_outbox ALTER COLUMN attempts SET NOT NULL;`;
+  await sql`ALTER TABLE notification_outbox DROP CONSTRAINT IF EXISTS notification_outbox_status_check;`;
+  await sql`
+    ALTER TABLE notification_outbox ADD CONSTRAINT notification_outbox_status_check
+      CHECK(status IN ('pending','processing','sent','failed'));
+  `;
+  await sql`ALTER TABLE notification_outbox DROP CONSTRAINT IF EXISTS notification_outbox_attempts_check;`;
+  await sql`ALTER TABLE notification_outbox ADD CONSTRAINT notification_outbox_attempts_check CHECK(attempts >= 0);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS revision_responses (
+      id                                  BIGSERIAL PRIMARY KEY,
+      submission_id                       BIGINT NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      review_round_id                     BIGINT NOT NULL REFERENCES review_rounds(id) ON DELETE RESTRICT,
+      status                              TEXT NOT NULL DEFAULT 'draft'
+                                          CHECK(status IN ('draft','submitted')),
+      response_items                      JSONB NOT NULL DEFAULT '[]',
+      response_document_version_id        BIGINT REFERENCES document_versions(id) ON DELETE RESTRICT,
+      tracked_changes_document_version_id BIGINT REFERENCES document_versions(id) ON DELETE RESTRICT,
+      clean_document_version_id           BIGINT REFERENCES document_versions(id) ON DELETE RESTRICT,
+      created_by                          BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at                          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      submitted_at                        TIMESTAMPTZ,
+      UNIQUE(submission_id, review_round_id),
+      CHECK(jsonb_typeof(response_items) = 'array'),
+      CHECK(status != 'submitted' OR submitted_at IS NOT NULL)
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS discussions (
+      id                    BIGSERIAL PRIMARY KEY,
+      submission_id         BIGINT NOT NULL REFERENCES submissions(id) ON DELETE RESTRICT,
+      stage                 TEXT NOT NULL,
+      subject               TEXT NOT NULL,
+      visibility            TEXT NOT NULL
+                            CHECK(visibility IN ('editorial','author_editor','all_parties')),
+      created_by_user_id    BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name       TEXT NOT NULL,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      is_closed             BOOLEAN NOT NULL DEFAULT FALSE
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS discussion_messages (
+      id                    BIGSERIAL PRIMARY KEY,
+      discussion_id         BIGINT NOT NULL REFERENCES discussions(id) ON DELETE RESTRICT,
+      sender_user_id        BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      sender_name           TEXT NOT NULL,
+      body                  TEXT NOT NULL,
+      attachment_version_id BIGINT REFERENCES document_versions(id) ON DELETE RESTRICT,
+      created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS deadline_configs (
+      id                     BIGSERIAL PRIMARY KEY,
+      stage                  TEXT NOT NULL,
+      role                   TEXT NOT NULL,
+      default_days           INTEGER NOT NULL CHECK(default_days > 0),
+      reminder_days_before   INTEGER[] NOT NULL DEFAULT '{7,3,1}',
+      auto_escalation_action TEXT,
+      updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(stage, role)
     );
   `;
 
@@ -639,6 +939,9 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_assignments_submission ON review_assignments(submission_id, review_round_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_assignments_reviewer_user ON review_assignments(reviewer_user_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_assignments_assigned_by ON review_assignments(assigned_by_user_id);`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_assignments_invitation_token_hash ON review_assignments(invitation_token_hash) WHERE invitation_token_hash IS NOT NULL;`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_invitation_expiry ON review_assignments(status, invitation_expires_at) WHERE invitation_expires_at IS NOT NULL;`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_assignments_review_deadline ON review_assignments(review_deadline, status) WHERE review_deadline IS NOT NULL;`;
   await sql`CREATE INDEX IF NOT EXISTS idx_reports_submission ON review_reports(submission_id, review_round_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_reports_review_round ON review_reports(review_round_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_reports_submitted_by ON review_reports(submitted_by_user_id);`;
@@ -660,10 +963,67 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_evidence_share_otps_share ON evidence_share_otps(share_id, created_at DESC);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_evidence_accesses_share ON evidence_share_accesses(share_id, created_at DESC);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_notification_outbox_submission ON notification_outbox(submission_id, status);`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_outbox_dedupe_key ON notification_outbox(dedupe_key) WHERE dedupe_key IS NOT NULL;`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_notification_outbox_claim
+      ON notification_outbox(available_at, id)
+      WHERE status IN ('pending','failed','processing') AND attempts < 3;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_submission ON revision_responses(submission_id, review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_round ON revision_responses(review_round_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_response_version ON revision_responses(response_document_version_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_tracked_version ON revision_responses(tracked_changes_document_version_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_clean_version ON revision_responses(clean_document_version_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_revision_responses_created_by ON revision_responses(created_by);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_discussions_submission_stage ON discussions(submission_id, stage, created_at DESC);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_discussions_created_by ON discussions(created_by_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_discussion_messages_discussion ON discussion_messages(discussion_id, created_at);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_discussion_messages_sender ON discussion_messages(sender_user_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_discussion_messages_attachment ON discussion_messages(attachment_version_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_integrity_checks_version ON integrity_checks(document_version_id, checked_at DESC);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_articles_issue ON articles(issue_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_articles_source_version ON articles(source_document_version_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_submissions_current_round ON submissions(current_round_id);`;
+
+  console.log('Seeding default notification templates and deadline configurations...');
+  for (const template of DEFAULT_EMAIL_TEMPLATES) {
+    await sql`
+      INSERT INTO email_templates (
+        template_key, subject, body_html, description, variables
+      )
+      VALUES (
+        ${template.key}, ${template.subject}, ${template.body}, ${template.description},
+        ARRAY(
+          SELECT value
+          FROM jsonb_array_elements_text(${JSON.stringify(template.variables)}::jsonb) AS value
+        )
+      )
+      ON CONFLICT (template_key) DO NOTHING
+    `;
+  }
+  for (const config of DEFAULT_DEADLINE_CONFIGS) {
+    await sql`
+      INSERT INTO deadline_configs (
+        stage, role, default_days, reminder_days_before, auto_escalation_action
+      )
+      VALUES (
+        ${config.stage}, ${config.role}, ${config.defaultDays},
+        ARRAY(
+          SELECT value::integer
+          FROM jsonb_array_elements_text(${JSON.stringify(config.reminderDays)}::jsonb) AS value
+        ),
+        ${'autoEscalationAction' in config ? config.autoEscalationAction : null}
+      )
+      ON CONFLICT (stage, role) DO NOTHING
+    `;
+  }
+  await sql`
+    UPDATE deadline_configs
+    SET auto_escalation_action = 'auto_uninvite_reviewer'
+    WHERE stage = 'under_review'
+      AND role = 'reviewer'
+      AND auto_escalation_action IS NULL
+  `;
 
   console.log('Backfilling legacy manuscript pointers into case files...');
   await sql`

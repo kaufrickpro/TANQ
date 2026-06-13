@@ -2,7 +2,7 @@ import 'server-only';
 
 export async function sendEvidenceOtpEmail(email: string, otp: string, submissionTitle: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <onboarding@resend.dev>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ANQ <noreply@anq.aftap.org>';
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[DEV] Evidence OTP -> ${email}: ${otp}`);
   }

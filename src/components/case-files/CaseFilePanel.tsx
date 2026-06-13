@@ -225,11 +225,11 @@ export default function CaseFilePanel({ submissionId, role }: Props) {
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Assign Reviewer To Latest Open Round</h4>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Invite Reviewer To Latest Open Round</h4>
             <div className="grid sm:grid-cols-3 gap-2">
               <input value={reviewerName} onChange={event => setReviewerName(event.target.value)} placeholder="Reviewer name" className="border border-border-custom px-2 py-2 text-xs" />
               <input value={reviewerEmail} onChange={event => setReviewerEmail(event.target.value)} placeholder="Reviewer email" className="border border-border-custom px-2 py-2 text-xs" />
-              <button disabled={working || !latestRound || latestRound.status !== 'open'} onClick={() => jsonAction(`/api/case-files/${submissionId}/reviews`, { action: 'assign', review_round_id: latestRound?.id, reviewer_name: reviewerName, reviewer_email: reviewerEmail }, 'Reviewer assigned.')} className="bg-olive text-white px-3 py-2 text-[10px] uppercase font-bold disabled:opacity-50">Assign</button>
+              <button disabled={working || !latestRound || latestRound.status !== 'open'} onClick={() => jsonAction(`/api/case-files/${submissionId}/reviews`, { action: 'invite', review_round_id: latestRound?.id, reviewer_name: reviewerName, reviewer_email: reviewerEmail }, 'Reviewer invitation queued.')} className="bg-olive text-white px-3 py-2 text-[10px] uppercase font-bold disabled:opacity-50">Invite</button>
             </div>
           </div>
 

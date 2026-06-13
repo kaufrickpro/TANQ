@@ -166,7 +166,7 @@ export default async function CurrentIssuePage() {
                     className="bg-bg-card border border-border-custom p-6 border-l-4 border-l-olive hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-r-sm"
                   >
                     <h4 className="font-serif font-bold text-base text-text-primary hover:text-link transition-colors mb-2">
-                      <Link href={`/article/${article.id}`}>{article.title}</Link>
+                      <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`}>{article.title}</Link>
                     </h4>
                     <p className="text-xs text-text-heading italic mb-3 font-serif">{article.authors}</p>
                     
@@ -180,7 +180,7 @@ export default async function CurrentIssuePage() {
                         <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                       </div>
                       <div className="flex gap-4 shrink-0">
-                        <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
+                        <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
                         <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                       </div>
                     </div>
@@ -203,7 +203,7 @@ export default async function CurrentIssuePage() {
                     className="bg-bg-card border border-border-custom p-6 border-l-4 border-l-olive hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-r-sm"
                   >
                     <h4 className="font-serif font-bold text-base text-text-primary hover:text-link transition-colors mb-2">
-                      <Link href={`/article/${article.id}`}>{article.title}</Link>
+                      <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`}>{article.title}</Link>
                     </h4>
                     <p className="text-xs text-text-heading italic mb-3 font-serif">{article.authors}</p>
                     
@@ -217,7 +217,7 @@ export default async function CurrentIssuePage() {
                         <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                       </div>
                       <div className="flex gap-4 shrink-0">
-                        <Link href={`/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
+                        <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
                         <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                       </div>
                     </div>

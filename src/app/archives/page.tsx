@@ -202,7 +202,7 @@ export default async function ArchivesPage() {
                           <ul className="text-xs space-y-1.5 list-disc pl-4 font-serif text-text-primary/90">
                             {articles.map((article) => (
                               <li key={article.id} className="leading-snug">
-                                <Link href={`/article/${article.id}`} className="hover:underline hover:text-link">
+                                <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="hover:underline hover:text-link">
                                   {article.title}
                                 </Link>
                               </li>

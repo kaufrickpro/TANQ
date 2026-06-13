@@ -4,21 +4,27 @@ import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import {
   addReviewAddendum,
-  assignReviewer,
+  createReviewerInvitation,
+  getReviewerStats,
   openReviewRound,
   recordEditorialDecision,
   releaseReviewReport,
+  sendReviewerReminder,
   submitReviewReport,
 } from '@/lib/case-files/reviews';
 import { getSubmissionAccess } from '@/lib/case-files/access';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
   const submissionId = Number(id);
   const access = await getSubmissionAccess(session, submissionId);
   if (!access.allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const reviewerUserId = new URL(request.url).searchParams.get('reviewer_user_id');
+  if (reviewerUserId && ['admin', 'editor'].includes(session.role)) {
+    return NextResponse.json({ stats: await getReviewerStats(Number(reviewerUserId)) });
+  }
 
   if (session.role === 'author') {
     const released = await db`
@@ -34,14 +40,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   if (session.role === 'reviewer') {
     const assignments = await db`
-      SELECT ra.*, rr.round_number, rr.manuscript_version_id,
+      SELECT ra.id, ra.submission_id, ra.review_round_id, ra.reviewer_name, ra.reviewer_email,
+             CASE WHEN ra.status = 'assigned' THEN 'accepted' ELSE ra.status END AS status,
+             ra.response_at, ra.review_deadline, ra.reminder_count, ra.last_reminder_at,
+             rr.round_number, rr.manuscript_version_id,
              rp.id AS report_id, rp.recommendation, rp.score, rp.comments_to_author,
              rp.confidential_comments, rp.submitted_at
       FROM review_assignments ra
       JOIN review_rounds rr ON rr.id = ra.review_round_id
       LEFT JOIN review_reports rp ON rp.assignment_id = ra.id
       WHERE ra.submission_id = ${submissionId}
-        AND ra.reviewer_email = ${session.email.trim().toLowerCase()}
+        AND LOWER(TRIM(ra.reviewer_email)) = LOWER(TRIM(${session.email}))
+        AND ra.status IN ('assigned', 'accepted', 'submitted')
       ORDER BY rr.round_number DESC
     `;
     return NextResponse.json({ assignments: assignments.rows });
@@ -57,7 +67,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     ORDER BY rr.round_number DESC, rp.submitted_at ASC
   `;
   const assignments = await db`
-    SELECT ra.*, rr.round_number
+    SELECT ra.id, ra.submission_id, ra.review_round_id, ra.reviewer_user_id,
+           ra.reviewer_name, ra.reviewer_email,
+           CASE WHEN ra.status = 'assigned' THEN 'accepted' ELSE ra.status END AS status,
+           ra.assigned_by_user_id, ra.assigned_by_name, ra.assigned_at, ra.submitted_at,
+           ra.invitation_sent_at, ra.invitation_expires_at, ra.response_at, ra.decline_reason,
+           ra.coi_declaration, ra.coi_declared, ra.reminder_count, ra.last_reminder_at,
+           ra.review_deadline, ra.is_alternate, rr.round_number
     FROM review_assignments ra
     JOIN review_rounds rr ON rr.id = ra.review_round_id
     WHERE ra.submission_id = ${submissionId}
@@ -79,13 +95,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (body.action === 'open_round') {
       result = await openReviewRound({ submissionId, manuscriptVersionId: Number(body.manuscript_version_id), actor });
     } else if (body.action === 'assign') {
-      result = await assignReviewer({
+      result = await createReviewerInvitation({
         submissionId,
         reviewRoundId: Number(body.review_round_id),
         reviewerName: body.reviewer_name,
         reviewerEmail: body.reviewer_email,
         actor,
       });
+    } else if (body.action === 'invite') {
+      result = await createReviewerInvitation({
+        submissionId,
+        reviewRoundId: Number(body.review_round_id),
+        reviewerName: body.reviewer_name,
+        reviewerEmail: body.reviewer_email,
+        deadline: body.review_deadline || null,
+        isAlternate: Boolean(body.is_alternate),
+        actor,
+      });
+    } else if (body.action === 'remind') {
+      result = await sendReviewerReminder(Number(body.assignment_id), actor);
     } else if (body.action === 'submit_report') {
       result = await submitReviewReport({
         assignmentId: Number(body.assignment_id),
@@ -115,4 +143,3 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: error.message || 'Review action failed' }, { status: 400 });
   }
 }
-

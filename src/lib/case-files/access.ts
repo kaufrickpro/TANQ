@@ -64,7 +64,7 @@ export async function getSubmissionAccess(
       JOIN review_rounds rr ON rr.id = ra.review_round_id
       WHERE ra.submission_id = ${submissionId}
         AND LOWER(TRIM(ra.reviewer_email)) = LOWER(TRIM(${user.email}))
-        AND ra.status != 'cancelled'
+        AND ra.status IN ('assigned', 'accepted', 'submitted')
     `;
     if (assignments.rows.length > 0) {
       return {

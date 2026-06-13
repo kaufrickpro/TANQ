@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { put } from '@vercel/blob';
+import { put } from '@/lib/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { uploadDocumentVersion } from '@/lib/case-files/documents';
 import { transitionSubmission } from '@/lib/case-files/workflow';
+import { queueNotification } from '@/lib/notifications';
 import type { AuthUser } from '@/lib/session';
 
 function getString(formData: FormData, key: string): string {
@@ -218,6 +219,28 @@ async function handleMultipartPost(request: Request, session: AuthUser) {
     });
 
     const newArticle = insertArticleResult.rows[0];
+    try {
+      let articleUrl = `${process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin}/article/${newArticle.id}`;
+      const issueRecordResult = await db`SELECT volume, number FROM issues WHERE id = ${issueId}`;
+      const issueRecord = issueRecordResult.rows[0];
+      if (issueRecord) {
+        articleUrl = `${process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin}/volume${issueRecord.volume}/issue${issueRecord.number}/article/${newArticle.id}`;
+      }
+
+      await queueNotification({
+        templateKey: 'article_published',
+        recipientEmail: submission.author_email,
+        submissionId,
+        dedupeKey: `article-published:${newArticle.id}:${submission.author_email.trim().toLowerCase()}`,
+        variables: {
+          author_name: submission.author_name,
+          submission_title: finalTitle,
+          article_url: articleUrl,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to queue article publication notification:', error);
+    }
     return NextResponse.json({ success: true, article: newArticle });
   }
 

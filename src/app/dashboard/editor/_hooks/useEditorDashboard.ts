@@ -401,7 +401,7 @@ export function useEditorDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'assign',
+          action: 'invite',
           review_round_id: activeRound.id,
           reviewer_name: revName,
           reviewer_email: revEmail
@@ -409,17 +409,17 @@ export function useEditorDashboard() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to assign reviewer');
+        throw new Error('Failed to invite reviewer');
       }
 
-      setSuccess(`Reviewer ${revName} assigned to review round ${activeRound.round_number}.`);
+      setSuccess(`Reviewer ${revName} invited to review round ${activeRound.round_number}.`);
       setRevName('');
       setRevEmail('');
       
       fetchReviews(selectedSub.id);
       fetchData();
     } catch (e: any) {
-      setError(e.message || 'Error assigning reviewer');
+      setError(e.message || 'Error inviting reviewer');
     } finally {
       setAssigning(false);
     }

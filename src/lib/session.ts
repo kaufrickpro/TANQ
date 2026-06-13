@@ -8,6 +8,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  is_verified: boolean;
 }
 
 /**
@@ -41,7 +42,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
     const tokenHash = crypto.createHash('sha256').update(tokenCookie.value).digest('hex');
     const sessionResult = await db`
       SELECT s.id as session_id, s.expires_at, s.revoked_at, s.last_activity,
-             u.id, u.username, u.name, u.email, u.role, u.is_disabled
+             u.id, u.username, u.name, u.email, u.role, u.is_disabled, u.is_verified
       FROM auth_sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.token_hash = ${tokenHash}
@@ -82,7 +83,8 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       username: session.username,
       name: session.name,
       email: session.email,
-      role: session.role
+      role: session.role,
+      is_verified: Boolean(session.is_verified),
     };
   } catch (e) {
     console.error('Error fetching session user:', e);

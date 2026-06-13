@@ -141,9 +141,12 @@ export default function InviteTeamSection({
                         {inv.email}
                       </td>
                       <td className="py-3 pr-2 uppercase font-bold text-[9px] tracking-wider font-sans">
-                        <span className={inv.role === 'admin'
-                          ? 'bg-charcoal text-white px-1.5 py-0.5 rounded-sm'
-                          : 'bg-sand text-olive border border-border-custom px-1.5 py-0.5 rounded-sm'}>
+                        <span className={
+                          inv.role === 'admin' ? 'bg-charcoal text-white px-1.5 py-0.5 rounded-sm' :
+                          inv.role === 'editor' ? 'bg-olive text-white px-1.5 py-0.5 rounded-sm' :
+                          inv.role === 'secretary' ? 'bg-sand text-charcoal border border-border-custom px-1.5 py-0.5 rounded-sm' :
+                          'bg-sand text-olive border border-border-custom px-1.5 py-0.5 rounded-sm'
+                        }>
                           {inv.role.replace('_', ' ')}
                         </span>
                       </td>

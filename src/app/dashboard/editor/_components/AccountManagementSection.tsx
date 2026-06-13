@@ -133,7 +133,9 @@ export default function AccountManagementSection({
               className="bg-white border border-border-custom rounded-sm w-full px-3 py-2 text-sm text-black focus:outline-none focus:border-olive shadow-sm font-serif"
             >
               <option value="all">All Roles</option>
-              <option value="admin">Administrator / Editor</option>
+              <option value="admin">Admin</option>
+              <option value="editor">Editor</option>
+              <option value="secretary">Secretary</option>
               <option value="reviewer">Reviewer</option>
               <option value="author">Author</option>
             </select>
@@ -237,7 +239,11 @@ export default function AccountManagementSection({
                       </td>
                       <td className="py-3.5 pr-2 uppercase font-bold text-[9px] tracking-wider font-sans">
                         {acc.role === 'admin' ? (
-                          <span className="bg-charcoal text-white px-1.5 py-0.5 rounded-sm">Admin / Editor</span>
+                          <span className="bg-charcoal text-white px-1.5 py-0.5 rounded-sm">Admin</span>
+                        ) : acc.role === 'editor' ? (
+                          <span className="bg-olive text-white px-1.5 py-0.5 rounded-sm">Editor</span>
+                        ) : acc.role === 'secretary' ? (
+                          <span className="bg-sand text-charcoal border border-border-custom px-1.5 py-0.5 rounded-sm">Secretary</span>
                         ) : acc.role === 'reviewer' ? (
                           <span className="bg-sand text-olive border border-border-custom px-1.5 py-0.5 rounded-sm">Reviewer</span>
                         ) : (

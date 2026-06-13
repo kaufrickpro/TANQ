@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { PassThrough, Readable } from 'stream';
 import { createRequire } from 'module';
 import PDFDocument from 'pdfkit';
-import { get, put } from '@vercel/blob';
+import { get, put } from '@/lib/blob';
 import db from '@/lib/db';
 import { appendSubmissionEvent, verifySubmissionEventChain } from './audit';
 import type { CaseFileActor } from './types';

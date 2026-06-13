@@ -198,7 +198,7 @@ describe('Immutable manuscript case-file core', () => {
     const reviewerCaseFile = await getCaseFile(reviewer, submissionId);
     const visibleManuscripts = reviewerCaseFile?.documents.filter((document: any) => document.kind === 'manuscript');
     expect(visibleManuscripts).toHaveLength(1);
-    expect(visibleManuscripts?.[0].original_filename).toBe('anonymous-v1.docx');
+    expect(visibleManuscripts?.[0].original_filename).toBe('manuscript_v1.docx');
   });
 
   it('stores submitted reports immutably and exposes them to authors only after release', async () => {
@@ -283,5 +283,119 @@ describe('Immutable manuscript case-file core', () => {
     expect((await db`SELECT COUNT(*)::integer AS count FROM review_rounds WHERE submission_id = ${legacy.rows[0].id}`).rows[0].count).toBe(1);
     expect((await db`SELECT COUNT(*)::integer AS count FROM review_assignments WHERE submission_id = ${legacy.rows[0].id}`).rows[0].count).toBe(1);
     expect((await db`SELECT COUNT(*)::integer AS count FROM review_reports WHERE submission_id = ${legacy.rows[0].id}`).rows[0].count).toBe(1);
+  });
+
+  it('enforces double-blind review constraints on queries, documents, timeline events and discussions', async () => {
+    const submissionId = await createCaseFile();
+    const firstVersion = await db`SELECT id FROM document_versions WHERE submission_id = ${submissionId}`;
+    
+    // Start screening
+    await transitionSubmission({ submissionId, toStage: 'editor_screening', actor: editor, summary: 'Screening complete.' });
+    // Open round
+    const round = await openReviewRound({ submissionId, manuscriptVersionId: Number(firstVersion.rows[0].id), actor: editor });
+    // Assign reviewer
+    const assignment = await assignReviewer({
+      submissionId,
+      reviewRoundId: Number(round.id),
+      reviewerName: reviewer.name,
+      reviewerEmail: reviewer.email,
+      actor: editor,
+    });
+    
+    // Upload reviewer attachment
+    await uploadDocumentVersion({
+      submissionId,
+      kind: 'reviewer_attachment',
+      file: new File(['notes'], 'ReviewerNotes_John_Doe.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      actor: reviewer,
+      reviewRoundId: Number(round.id),
+      visibility: 'author',
+    });
+
+    // 1. Verify Reviewer's view of case file
+    const reviewerCaseFile = await getCaseFile(reviewer, submissionId);
+    expect(reviewerCaseFile).not.toBeNull();
+    // Submissions details stripped
+    expect(reviewerCaseFile!.submission.author_name).toBeUndefined();
+    expect(reviewerCaseFile!.submission.author_email).toBeUndefined();
+    expect(reviewerCaseFile!.submission.co_authors).toBeUndefined();
+    
+    // Document uploader name and filename masked
+    const manuscriptDoc = reviewerCaseFile!.documents.find((d: any) => d.kind === 'manuscript');
+    expect(manuscriptDoc.uploaded_by_name).toBe('Anonymous Author');
+    expect(manuscriptDoc.original_filename).toBe('manuscript_v1.docx');
+    
+    // Rounds filename masked
+    expect(reviewerCaseFile!.rounds[0].manuscript_filename).toBe('manuscript_v1.docx');
+
+    // 2. Verify Author's view of case file
+    const authorCaseFile = await getCaseFile(author, submissionId);
+    expect(authorCaseFile).not.toBeNull();
+    
+    // Reviewer attachment uploader name and filename masked
+    const attachmentDoc = authorCaseFile!.documents.find((d: any) => d.kind === 'reviewer_attachment');
+    expect(attachmentDoc.uploaded_by_name).toBe('Anonymous Reviewer');
+    expect(attachmentDoc.original_filename).toBe('reviewer_attachment_v1.docx');
+
+    // Timeline events masked
+    // We submit a report as reviewer
+    await submitReviewReport({
+      assignmentId: Number(assignment.id),
+      recommendation: 'minor_revision',
+      score: 4,
+      commentsToAuthor: 'Looks good.',
+      actor: reviewer,
+    });
+    
+    const authorCaseFileWithReport = await getCaseFile(author, submissionId);
+    // Find reviewer events (e.g., reviewer_assigned, review_report_submitted)
+    const reviewerEvents = authorCaseFileWithReport!.events.filter((e: any) => e.actor_role === 'reviewer');
+    expect(reviewerEvents.length).toBeGreaterThan(0);
+    for (const e of reviewerEvents) {
+      expect(e.actor_name).toBe('Anonymous Reviewer');
+    }
+
+    // 3. Verify Discussions anonymization
+    const { createDiscussion, addDiscussionMessage, listDiscussions } = await import('@/lib/case-files/discussions');
+    // Creator is Editor
+    const discResult = await createDiscussion({
+      submissionId,
+      subject: 'Clarification',
+      visibility: 'all_parties',
+      body: 'Welcome to the peer discussion.',
+      actor: editor,
+    });
+
+    // Author adds a message
+    await addDiscussionMessage({
+      submissionId,
+      discussionId: Number(discResult.discussion.id),
+      body: 'Can you clarify X?',
+      actor: author,
+    });
+    
+    // Reviewer lists discussions
+    const reviewerDiscs = await listDiscussions({ submissionId, viewer: reviewer });
+    expect(reviewerDiscs.length).toBeGreaterThan(0);
+    const discForReviewer = reviewerDiscs.find((d: any) => Number(d.id) === Number(discResult.discussion.id));
+    expect(discForReviewer.created_by_name).toBe(editor.name); // Editor name stays visible
+    expect(discForReviewer.messages[1].sender_name).toBe('Anonymous Author');
+
+    // Reviewer replies
+    await addDiscussionMessage({
+      submissionId,
+      discussionId: Number(discResult.discussion.id),
+      body: 'I meant Y.',
+      actor: reviewer,
+    });
+
+    // Author lists discussions
+    const authorDiscs = await listDiscussions({ submissionId, viewer: author });
+    const discForAuthor = authorDiscs.find((d: any) => Number(d.id) === Number(discResult.discussion.id));
+    expect(discForAuthor.created_by_name).toBe(editor.name);
+    // Message 1 is from Author (self), so it shows author name
+    expect(discForAuthor.messages[1].sender_name).toBe(author.name);
+    // Message 2 is from Reviewer, so it is Anonymous Reviewer
+    expect(discForAuthor.messages[2].sender_name).toBe('Anonymous Reviewer');
   });
 });
