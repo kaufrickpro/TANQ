@@ -4,8 +4,10 @@ import React, { useState, useCallback, useRef } from 'react';
 import { upload } from '@vercel/blob/client';
 import { safeJson } from '@/lib/clientFetch';
 import {
+  buildSubmissionUploadPath,
+  INITIAL_DOCUMENT_KINDS,
   MAX_SUBMISSION_FILE_SIZE,
-  safeSubmissionFilename,
+  type DraftSubmissionFile,
   type InitialDocumentKind,
 } from '@/lib/submissionFiles';
 import {
@@ -22,8 +24,9 @@ interface CoAuthor {
 }
 
 interface FileMeta {
-  file: File;
+  file: File | null;
   name: string;
+  uploaded: DraftSubmissionFile | null;
 }
 
 interface FilesState {
@@ -102,6 +105,51 @@ const FILE_SLOTS = [
   { key: 'similarityReport' as const, kind: 'similarity_report' as const, label: 'Similarity / Plagiarism Report', required: true, accept: '.pdf' },
   { key: 'ethicsApproval' as const, kind: 'ethics_approval' as const, label: 'Ethics Committee Approval', required: true, accept: '.pdf,.doc,.docx' },
 ];
+
+type FileSlotKey = (typeof FILE_SLOTS)[number]['key'];
+
+function readDraftFiles(value: unknown): Partial<Record<InitialDocumentKind, DraftSubmissionFile>> {
+  if (typeof value === 'string') {
+    try {
+      return readDraftFiles(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  const manifest = value as Record<string, Partial<DraftSubmissionFile>>;
+  const restored: Partial<Record<InitialDocumentKind, DraftSubmissionFile>> = {};
+  for (const kind of INITIAL_DOCUMENT_KINDS) {
+    const file = manifest[kind];
+    if (
+      file?.kind === kind &&
+      typeof file.url === 'string' &&
+      typeof file.pathname === 'string' &&
+      typeof file.originalFilename === 'string'
+    ) {
+      restored[kind] = file as DraftSubmissionFile;
+    }
+  }
+  return restored;
+}
+
+function initialFilesState(filesMeta: unknown): FilesState {
+  const saved = readDraftFiles(filesMeta);
+  const restored = (kind: InitialDocumentKind): FileMeta | null => {
+    const file = saved[kind];
+    return file ? { file: null, name: file.originalFilename, uploaded: file } : null;
+  };
+  return {
+    fullText: restored('manuscript'),
+    supplementary: restored('supplementary'),
+    titlePage: restored('title_page'),
+    copyrightForm: restored('copyright_form'),
+    similarityReport: restored('similarity_report'),
+    ethicsApproval: restored('ethics_approval'),
+    extras: [],
+  };
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -188,7 +236,12 @@ function FileSlotRow({ slotLabel, required, accept, value, onChange }: {
           {required && <span className="text-olive ml-1">*</span>}
         </p>
         {value ? (
-          <p className="text-[10px] text-olive font-mono mt-0.5 truncate">{value.name}</p>
+          <p className="text-[10px] text-olive font-mono mt-0.5 truncate">
+            {value.name}
+            <span className="ml-2 font-sans uppercase tracking-wider text-[8px]">
+              {value.file ? (value.uploaded ? 'Replacement selected' : 'Ready to save') : 'Saved to draft'}
+            </span>
+          </p>
         ) : (
           <p className="text-[10px] text-text-muted font-serif mt-0.5">No file selected</p>
         )}
@@ -214,7 +267,7 @@ function FileSlotRow({ slotLabel, required, accept, value, onChange }: {
           className="hidden"
           onChange={e => {
             const f = e.target.files?.[0];
-            if (f) onChange({ file: f, name: f.name });
+            if (f) onChange({ file: f, name: f.name, uploaded: null });
             e.target.value = '';
           }}
         />
@@ -252,6 +305,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     return 0;
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
@@ -291,15 +345,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
   const [newCoEmail, setNewCoEmail] = useState('');
 
   // Step 3
-  const [files, setFiles] = useState<FilesState>({
-    fullText: null,
-    supplementary: null,
-    titlePage: null,
-    copyrightForm: null,
-    similarityReport: null,
-    ethicsApproval: null,
-    extras: [],
-  });
+  const [files, setFiles] = useState<FilesState>(() => initialFilesState(initialDraft?.files_meta));
 
   // Step 4
   const [s4, setS4] = useState<Step4Data>(() => ({
@@ -406,6 +452,151 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     }
   }, [draftId, draftPublicId, s1, coAuthors, s4, noteToEditor, checklist]);
 
+  const persistDraftFiles = useCallback(async (
+    savedDraft: { id: number; publicId: string },
+  ): Promise<DraftSubmissionFile[]> => {
+    const selected = FILE_SLOTS.map(slot => ({
+      ...slot,
+      value: files[slot.key],
+    }));
+    for (const item of selected) {
+      if (!item.value) throw new Error(`${item.label} is required.`);
+      if (item.value.file && item.value.file.size > MAX_SUBMISSION_FILE_SIZE) {
+        throw new Error(`${item.label} must be less than 20MB.`);
+      }
+    }
+
+    const pending = selected.filter(item => item.value?.file);
+    const savedByKind = new Map<InitialDocumentKind, DraftSubmissionFile>();
+    for (const item of selected) {
+      if (item.value?.uploaded) savedByKind.set(item.kind, item.value.uploaded);
+    }
+
+    setUploadingFiles(true);
+    try {
+      if (pending.length > 0) {
+        const storageResponse = await fetch('/api/submissions/upload');
+        if (!storageResponse.ok) {
+          const storageError = await safeJson(storageResponse);
+          throw new Error(storageError.error || 'File storage is unavailable.');
+        }
+      }
+
+      for (const [index, item] of pending.entries()) {
+        const value = item.value!;
+        const file = value.file!;
+        const uploadId = crypto.randomUUID();
+        const pathname = buildSubmissionUploadPath({
+          publicId: savedDraft.publicId,
+          kind: item.kind,
+          uploadId,
+          originalFilename: value.name,
+        });
+        setUploadProgress(`Saving file ${index + 1} of ${pending.length}: ${item.label}`);
+
+        let blob;
+        try {
+          blob = await upload(pathname, file, {
+            access: 'private',
+            handleUploadUrl: '/api/submissions/upload',
+            clientPayload: JSON.stringify({
+              draftId: savedDraft.id,
+              kind: item.kind,
+              originalFilename: value.name,
+              uploadId,
+            }),
+            contentType: file.type || undefined,
+            multipart: file.size > 4 * 1024 * 1024,
+            headers: { 'x-requested-with': 'XMLHttpRequest' },
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (message.toLowerCase().includes('client token')) {
+            throw new Error(
+              `Could not authorize the upload for "${item.label}". The file remains selected; please try again.`,
+            );
+          }
+          throw error;
+        }
+
+        const registration = await fetch(`/api/submissions/${savedDraft.id}/files`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-requested-with': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({
+            kind: item.kind,
+            url: blob.url,
+            pathname: blob.pathname,
+            originalFilename: value.name,
+          }),
+        });
+        if (!registration.ok) {
+          const registrationError = await safeJson(registration);
+          throw new Error(registrationError.error || `${item.label} could not be saved to the draft.`);
+        }
+        const registered = (await safeJson(registration)).file as DraftSubmissionFile;
+        savedByKind.set(item.kind, registered);
+        setFiles(previous => ({
+          ...previous,
+          [item.key]: {
+            file: null,
+            name: registered.originalFilename,
+            uploaded: registered,
+          },
+        }));
+      }
+    } finally {
+      setUploadingFiles(false);
+      setUploadProgress('');
+    }
+
+    const documents = INITIAL_DOCUMENT_KINDS.map(kind => savedByKind.get(kind));
+    if (documents.some(document => !document)) {
+      throw new Error('All required files must be saved to the draft before continuing.');
+    }
+    return documents as DraftSubmissionFile[];
+  }, [files]);
+
+  const handleFileChange = useCallback(async (key: FileSlotKey, value: FileMeta | null) => {
+    const current = files[key];
+    if (value) {
+      setFiles(previous => ({
+        ...previous,
+        [key]: { ...value, uploaded: previous[key]?.uploaded ?? null },
+      }));
+      return;
+    }
+
+    if (!current?.uploaded || !draftId) {
+      setFiles(previous => ({ ...previous, [key]: null }));
+      return;
+    }
+
+    setUploadingFiles(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/submissions/${draftId}/files`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-requested-with': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ kind: current.uploaded.kind }),
+      });
+      if (!response.ok) {
+        const result = await safeJson(response);
+        throw new Error(result.error || 'The saved file could not be removed.');
+      }
+      setFiles(previous => ({ ...previous, [key]: null }));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'The saved file could not be removed.');
+    } finally {
+      setUploadingFiles(false);
+    }
+  }, [draftId, files]);
+
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const handleNext = async () => {
@@ -414,7 +605,12 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     setError('');
     const saved = await saveDraft(step);
     if (saved) {
-      setStep(s => s + 1);
+      try {
+        if (step === 2) await persistDraftFiles(saved);
+        setStep(s => s + 1);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Files could not be saved to the draft.');
+      }
     }
   };
 
@@ -434,19 +630,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     setUploadProgress('');
 
     try {
-      const selectedFiles = FILE_SLOTS.map(slot => ({
-        kind: slot.kind as InitialDocumentKind,
-        label: slot.label,
-        value: files[slot.key],
-      }));
-      for (const item of selectedFiles) {
-        if (!item.value) throw new Error(`${item.label} is required.`);
-        if (item.value.file.size > MAX_SUBMISSION_FILE_SIZE) {
-          throw new Error(`${item.label} must be less than 20MB.`);
-        }
-      }
-
-      setUploadProgress('Saving final draft details...');
+      setUploadProgress('Saving final draft details…');
       const savedDraft = await saveDraft(4);
       if (!savedDraft) {
         setSubmitting(false);
@@ -454,40 +638,9 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
         return;
       }
 
-      const documents: Array<{
-        kind: InitialDocumentKind;
-        url: string;
-        pathname: string;
-        originalFilename: string;
-      }> = [];
-      for (const [index, item] of selectedFiles.entries()) {
-        const value = item.value!;
-        const uploadId = crypto.randomUUID();
-        const pathname =
-          `manuscripts/${savedDraft.publicId}/${item.kind}/${uploadId}-` +
-          safeSubmissionFilename(value.name);
-        setUploadProgress(`Uploading ${index + 1} of ${selectedFiles.length}: ${item.label}`);
-        const blob = await upload(pathname, value.file, {
-          access: 'private',
-          handleUploadUrl: '/api/submissions/upload',
-          clientPayload: JSON.stringify({
-            draftId: savedDraft.id,
-            kind: item.kind,
-            originalFilename: value.name,
-            uploadId,
-          }),
-          contentType: value.file.type || undefined,
-          multipart: value.file.size > 4 * 1024 * 1024,
-        });
-        documents.push({
-          kind: item.kind,
-          url: blob.url,
-          pathname: blob.pathname,
-          originalFilename: value.name,
-        });
-      }
+      await persistDraftFiles(savedDraft);
 
-      setUploadProgress('Verifying files and completing submission...');
+      setUploadProgress('Verifying saved files and completing submission…');
       const res = await fetch('/api/submissions', {
         method: 'POST',
         headers: {
@@ -510,7 +663,6 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
           acknowledgements: s4.acknowledgements,
           editor_note: noteToEditor,
           checklist_confirmed: true,
-          documents,
         }),
       });
 
@@ -683,7 +835,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
                   required={slot.required}
                   accept={slot.accept}
                   value={files[slot.key]}
-                  onChange={val => setFiles(prev => ({ ...prev, [slot.key]: val }))}
+                  onChange={val => void handleFileChange(slot.key, val)}
                 />
               ))}
               {/* Extra files */}
@@ -702,7 +854,10 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
                 <Plus size={14} /> Add Extra File
                 <input type="file" className="hidden" onChange={e => {
                   const f = e.target.files?.[0];
-                  if (f) setFiles(prev => ({ ...prev, extras: [...prev.extras, { file: f, name: f.name }] }));
+                  if (f) setFiles(prev => ({
+                    ...prev,
+                    extras: [...prev.extras, { file: f, name: f.name, uploaded: null }],
+                  }));
                   e.target.value = '';
                 }} />
               </label>
@@ -828,12 +983,13 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
         {/* Footer */}
         <div className="shrink-0 px-6 py-4 bg-bg-card border-t border-border-custom flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {saving && (
+            {(saving || uploadingFiles) && (
               <span className="text-[10px] text-text-muted font-sans flex items-center gap-1">
-                <Loader2 size={11} className="animate-spin" /> Saving draft...
+                <Loader2 size={11} className="animate-spin" />
+                {uploadProgress || 'Saving draft…'}
               </span>
             )}
-            {submitting && uploadProgress && !saving && (
+            {submitting && uploadProgress && !saving && !uploadingFiles && (
               <span className="text-[10px] text-text-muted font-sans flex items-center gap-1">
                 <Loader2 size={11} className="animate-spin" /> {uploadProgress}
               </span>
@@ -844,6 +1000,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
               <button
                 type="button"
                 onClick={handleBack}
+                disabled={saving || uploadingFiles || submitting}
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-border-custom bg-white text-text-heading font-sans font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer hover:bg-sand/20 transition-colors"
               >
                 <ChevronLeft size={14} /> Back
@@ -853,7 +1010,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={saving}
+                disabled={saving || uploadingFiles}
                 className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-olive text-white font-sans font-bold text-xs uppercase tracking-wider rounded-sm cursor-pointer hover:bg-link-hover transition-colors disabled:opacity-50"
               >
                 Next <ChevronRight size={14} />

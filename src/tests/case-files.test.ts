@@ -202,9 +202,10 @@ describe('Immutable manuscript case-file core', () => {
       actor: author,
     });
 
-    const submission = await db`SELECT status, file_path FROM submissions WHERE id = ${submissionId}`;
+    const submission = await db`SELECT status, file_path, files_meta FROM submissions WHERE id = ${submissionId}`;
     expect(submission.rows[0].status).toBe('submitted');
     expect(submission.rows[0].file_path).toContain('/manuscript/');
+    expect(submission.rows[0].files_meta).toEqual({});
 
     const versions = await db`
       SELECT kind, original_filename, sha256

@@ -37,6 +37,7 @@ interface Submission {
   editor_note?: string | null;
   checklist_confirmed?: boolean;
   draft_step?: number;
+  files_meta?: unknown;
 }
 
 interface UserSession {

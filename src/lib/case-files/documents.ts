@@ -12,6 +12,7 @@ import type {
 } from './types';
 import {
   INITIAL_DOCUMENT_KINDS,
+  isCanonicalSubmissionUploadPath,
   safeSubmissionFilename,
   validateSubmissionFileMetadata,
   type InitialDocumentKind,
@@ -140,6 +141,7 @@ async function persistSubmittedCaseFile(
             acknowledgements = ${input.metadata.acknowledgements ?? null},
             checklist_confirmed = ${input.metadata.checklistConfirmed},
             draft_step = 5,
+            files_meta = '{}'::jsonb,
             lock_version = lock_version + 1
         WHERE id = ${input.draftId}
           AND status = 'draft'
@@ -406,69 +408,56 @@ export async function createSubmittedCaseFileFromBlobs(input: SubmittedCaseFileI
   ).rows[0];
   if (!draft) throw new SubmissionFinalizationError('Draft not found or no longer editable');
 
-  const verifiedUrls: string[] = [];
-  try {
-    const prepared: PreparedDocument[] = [];
-    for (const item of input.documents) {
-      const defaults = DOCUMENT_KIND_DEFAULTS[item.kind];
-      const prefix = `manuscripts/${draft.public_id}/${item.kind}/`;
-      const safeName = safeSubmissionFilename(item.originalFilename);
-      const suffix = `-${safeName}`;
-      if (!item.pathname.startsWith(prefix) || !item.pathname.endsWith(suffix)) {
-        throw new SubmissionFinalizationError('Uploaded file path does not belong to this draft.');
-      }
-      const uploadId = item.pathname.slice(prefix.length, -suffix.length);
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadId)) {
-        throw new SubmissionFinalizationError('Uploaded file path is invalid.');
-      }
+  const prepared: PreparedDocument[] = [];
+  for (const item of input.documents) {
+    const defaults = DOCUMENT_KIND_DEFAULTS[item.kind];
+    if (!isCanonicalSubmissionUploadPath({
+      publicId: String(draft.public_id),
+      kind: item.kind,
+      pathname: item.pathname,
+      originalFilename: item.originalFilename,
+    })) {
+      throw new SubmissionFinalizationError('Uploaded file path does not belong to this draft.');
+    }
 
-      const blob = await head(item.url, { abortSignal: AbortSignal.timeout(30_000) });
-      if (blob.url !== item.url || blob.pathname !== item.pathname) {
-        throw new SubmissionFinalizationError('Uploaded file metadata does not match the stored blob.');
-      }
-      try {
-        validateSubmissionFileMetadata({
-          filename: item.originalFilename,
-          contentType: blob.contentType,
-          size: blob.size,
-          kind: item.kind,
-        });
-      } catch (error) {
-        throw new SubmissionFinalizationError(
-          error instanceof Error ? error.message : 'Uploaded file metadata is invalid.',
-        );
-      }
-      verifiedUrls.push(blob.url);
-      const sha256 = await sha256PrivateBlob(blob.url, {
-        pathname: blob.pathname,
-        size: blob.size,
-        etag: blob.etag,
-      });
-      prepared.push({
-        kind: item.kind,
-        originalFilename: item.originalFilename,
+    const blob = await head(item.url, { abortSignal: AbortSignal.timeout(30_000) });
+    if (blob.url !== item.url || blob.pathname !== item.pathname) {
+      throw new SubmissionFinalizationError('Uploaded file metadata does not match the stored blob.');
+    }
+    try {
+      validateSubmissionFileMetadata({
+        filename: item.originalFilename,
         contentType: blob.contentType,
         size: blob.size,
-        sha256,
-        etag: blob.etag,
-        blobUrl: blob.url,
-        blobPathname: blob.pathname,
-        label: defaults.label,
-        visibility: defaults.visibility,
+        kind: item.kind,
       });
+    } catch (error) {
+      throw new SubmissionFinalizationError(
+        error instanceof Error ? error.message : 'Uploaded file metadata is invalid.',
+      );
     }
-
-    return await persistSubmittedCaseFile(input, String(draft.public_id), prepared);
-  } catch (error) {
-    if (verifiedUrls.length > 0) {
-      try {
-        await del(verifiedUrls);
-      } catch (cleanupError) {
-        console.error('Failed to clean up uncommitted direct uploads:', cleanupError);
-      }
-    }
-    throw error;
+    const sha256 = await sha256PrivateBlob(blob.url, {
+      pathname: blob.pathname,
+      size: blob.size,
+      etag: blob.etag,
+    });
+    prepared.push({
+      kind: item.kind,
+      originalFilename: item.originalFilename,
+      contentType: blob.contentType,
+      size: blob.size,
+      sha256,
+      etag: blob.etag,
+      blobUrl: blob.url,
+      blobPathname: blob.pathname,
+      label: defaults.label,
+      visibility: defaults.visibility,
+    });
   }
+
+  // Direct uploads are durable draft assets. If finalization fails, keep them so
+  // the author can correct metadata and retry without uploading every file again.
+  return persistSubmittedCaseFile(input, String(draft.public_id), prepared);
 }
 
 export async function uploadDocumentVersion(input: {

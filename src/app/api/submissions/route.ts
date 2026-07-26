@@ -11,7 +11,31 @@ import {
   type DirectUploadedDocument,
 } from '@/lib/case-files/documents';
 import type { DocumentKind } from '@/lib/case-files/types';
-import { isInitialDocumentKind } from '@/lib/submissionFiles';
+import {
+  INITIAL_DOCUMENT_KINDS,
+  isInitialDocumentKind,
+  type DraftSubmissionFile,
+} from '@/lib/submissionFiles';
+
+function documentsFromDraftManifest(value: unknown): DirectUploadedDocument[] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const manifest = value as Record<string, Partial<DraftSubmissionFile>>;
+  const documents = INITIAL_DOCUMENT_KINDS.map(kind => manifest[kind]);
+  if (documents.some(item => !item)) return null;
+  return documents.map(item => ({
+    kind: item!.kind!,
+    url: item!.url!,
+    pathname: item!.pathname!,
+    originalFilename: item!.originalFilename!,
+  }));
+}
+
+function draftManifestUrls(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return Object.values(value as Record<string, Partial<DraftSubmissionFile>>)
+    .map(file => file?.url)
+    .filter((url): url is string => typeof url === 'string' && url.length > 0);
+}
 
 function mapSubmission(row: any) {
   if (!row) return null;
@@ -157,7 +181,24 @@ export async function POST(request: Request) {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const documents = Array.isArray(body.documents) ? body.documents : null;
+      const draftId = Number(body.draft_id);
+      if (!Number.isInteger(draftId) || draftId <= 0) {
+        return NextResponse.json({ error: 'A valid draft is required.' }, { status: 400 });
+      }
+
+      let documents = Array.isArray(body.documents) ? body.documents : null;
+      if (!documents) {
+        const draft = (
+          await db`
+            SELECT files_meta
+            FROM submissions
+            WHERE id = ${draftId}
+              AND status = 'draft'
+              AND LOWER(TRIM(author_email)) = LOWER(TRIM(${session.email}))
+          `
+        ).rows[0];
+        documents = documentsFromDraftManifest(draft?.files_meta);
+      }
       if (
         !documents ||
         !documents.every((item: unknown) => {
@@ -171,11 +212,9 @@ export async function POST(request: Request) {
           );
         })
       ) {
-        return NextResponse.json({ error: 'Uploaded document metadata is invalid.' }, { status: 400 });
-      }
-      const draftId = Number(body.draft_id);
-      if (!Number.isInteger(draftId) || draftId <= 0) {
-        return NextResponse.json({ error: 'A valid draft is required.' }, { status: 400 });
+        return NextResponse.json({
+          error: 'All required files must be saved to the draft before submission.',
+        }, { status: 400 });
       }
 
       try {
@@ -469,17 +508,22 @@ export async function DELETE(request: Request) {
       }, { status: 409 });
     }
 
-    // Delete old blob file if it exists
-    if (submission.file_path) {
+    const draftBlobUrls = [
+      ...(submission.file_path ? [submission.file_path] : []),
+      ...draftManifestUrls(submission.files_meta),
+    ];
+
+    // Remove the row first so a storage failure cannot leave a deleted file
+    // referenced by a still-editable draft.
+    await db`DELETE FROM submissions WHERE id = ${Number(submissionId)}`;
+
+    if (draftBlobUrls.length > 0) {
       try {
-        await del(submission.file_path);
+        await del([...new Set(draftBlobUrls)]);
       } catch (delError) {
-        console.error('Failed to delete blob file during submission deletion:', submission.file_path, delError);
+        console.error('Failed to delete draft blobs during submission deletion:', draftBlobUrls, delError);
       }
     }
-
-    // Delete from DB
-    await db`DELETE FROM submissions WHERE id = ${Number(submissionId)}`;
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

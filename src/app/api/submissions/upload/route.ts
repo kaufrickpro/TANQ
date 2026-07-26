@@ -4,9 +4,9 @@ import db from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import {
+  buildSubmissionUploadPath,
   MAX_SUBMISSION_FILE_SIZE,
   isInitialDocumentKind,
-  safeSubmissionFilename,
   submissionFileExtension,
   validateSubmissionFileMetadata,
   type InitialDocumentKind,
@@ -117,9 +117,12 @@ export async function POST(request: Request) {
         ).rows[0];
         if (!draft) throw new UploadRequestError('Draft not found or no longer editable');
 
-        const expectedPathname =
-          `manuscripts/${draft.public_id}/${payload.kind}/${payload.uploadId}-` +
-          safeSubmissionFilename(payload.originalFilename);
+        const expectedPathname = buildSubmissionUploadPath({
+          publicId: String(draft.public_id),
+          kind: payload.kind,
+          uploadId: payload.uploadId,
+          originalFilename: payload.originalFilename,
+        });
         if (pathname !== expectedPathname) {
           throw new UploadRequestError('Upload path does not belong to this draft.');
         }
@@ -146,4 +149,16 @@ export async function POST(request: Request) {
     console.error('Unexpected direct-upload authorization error:', error);
     return NextResponse.json({ error: 'Upload authorization failed.' }, { status: 500 });
   }
+}
+
+export async function GET() {
+  const session = await getSessionUser();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (session.role !== 'author') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({
+      error: 'File storage is not configured. Add BLOB_READ_WRITE_TOKEN to the deployment environment.',
+    }, { status: 503 });
+  }
+  return NextResponse.json({ configured: true });
 }
