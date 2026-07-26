@@ -3,8 +3,15 @@ import db from '@/lib/db';
 import { del } from '@/lib/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
-import { createSubmittedCaseFile, uploadDocumentVersion } from '@/lib/case-files/documents';
+import {
+  createSubmittedCaseFile,
+  createSubmittedCaseFileFromBlobs,
+  SubmissionFinalizationError,
+  uploadDocumentVersion,
+  type DirectUploadedDocument,
+} from '@/lib/case-files/documents';
 import type { DocumentKind } from '@/lib/case-files/types';
+import { isInitialDocumentKind } from '@/lib/submissionFiles';
 
 function mapSubmission(row: any) {
   if (!row) return null;
@@ -148,6 +155,64 @@ export async function POST(request: Request) {
     }
 
     const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      const documents = Array.isArray(body.documents) ? body.documents : null;
+      if (
+        !documents ||
+        !documents.every((item: unknown) => {
+          if (!item || typeof item !== 'object') return false;
+          const candidate = item as Partial<DirectUploadedDocument>;
+          return (
+            isInitialDocumentKind(candidate.kind) &&
+            typeof candidate.url === 'string' &&
+            typeof candidate.pathname === 'string' &&
+            typeof candidate.originalFilename === 'string'
+          );
+        })
+      ) {
+        return NextResponse.json({ error: 'Uploaded document metadata is invalid.' }, { status: 400 });
+      }
+      const draftId = Number(body.draft_id);
+      if (!Number.isInteger(draftId) || draftId <= 0) {
+        return NextResponse.json({ error: 'A valid draft is required.' }, { status: 400 });
+      }
+
+      try {
+        const submissionId = await createSubmittedCaseFileFromBlobs({
+          draftId,
+          metadata: {
+            title: String(body.title || ''),
+            abstract: String(body.abstract || ''),
+            keywords: String(body.keywords || ''),
+            authorName: session.name,
+            authorEmail: session.email,
+            submissionType: String(body.submission_type || 'Research Article'),
+            topic: String(body.topic || '') || null,
+            language: String(body.language || 'English'),
+            shortTitle: String(body.short_title || '') || null,
+            coAuthors: Array.isArray(body.co_authors) ? body.co_authors : [],
+            editorNote: String(body.editor_note || '') || null,
+            projectNumber: String(body.project_number || '') || null,
+            ethicsStatement: String(body.ethics_statement || '') || null,
+            supportingInstitution: String(body.supporting_institution || '') || null,
+            acknowledgements: String(body.acknowledgements || '') || null,
+            checklistConfirmed: body.checklist_confirmed === true,
+          },
+          documents: documents as DirectUploadedDocument[],
+          actor: { id: session.id, name: session.name, role: 'author', email: session.email },
+        });
+        const result = await db`SELECT * FROM submissions WHERE id = ${submissionId}`;
+        return NextResponse.json(mapSubmission(result.rows[0]), { status: 201 });
+      } catch (error) {
+        console.error('Error finalizing direct-upload submission:', error);
+        if (error instanceof SubmissionFinalizationError) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        return NextResponse.json({ error: 'Submission could not be finalized.' }, { status: 500 });
+      }
+    }
+
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       const coAuthorsRaw = formData.get('co_authors');

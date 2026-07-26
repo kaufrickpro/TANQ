@@ -17,22 +17,71 @@ if (process.env.TEST_DATABASE_URL) process.env.POSTGRES_URL = process.env.TEST_D
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execSync } from 'child_process';
+import crypto from 'crypto';
 import db from '@/lib/db';
 import { resetTestDatabase } from './helpers/db';
-import { createSubmittedCaseFile, uploadDocumentVersion } from '@/lib/case-files/documents';
+import {
+  createSubmittedCaseFile,
+  createSubmittedCaseFileFromBlobs,
+  uploadDocumentVersion,
+} from '@/lib/case-files/documents';
 import { verifySubmissionEventChain } from '@/lib/case-files/audit';
 import { transitionSubmission } from '@/lib/case-files/workflow';
 import { assignReviewer, openReviewRound, releaseReviewReport, submitReviewReport } from '@/lib/case-files/reviews';
 import { getCaseFile } from '@/lib/case-files/queries';
-import { del } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 
+const blobBodies = vi.hoisted(() => new Map<string, Uint8Array>());
 vi.mock('@vercel/blob', () => ({
-  put: vi.fn(async (pathname: string) => ({
-    url: `https://mock.blob.vercel.storage/${pathname}`,
-    pathname,
-    etag: `etag-${pathname}`,
-  })),
+  put: vi.fn(async (pathname: string, body: Uint8Array) => {
+    blobBodies.set(pathname, new Uint8Array(body));
+    return {
+      url: `https://mock.blob.vercel.storage/${pathname}`,
+      pathname,
+      etag: `etag-${pathname}`,
+    };
+  }),
   del: vi.fn(async () => ({ success: true })),
+  head: vi.fn(async (url: string) => {
+    const pathname = new URL(url).pathname.replace(/^\/+/, '');
+    const body = blobBodies.get(pathname);
+    if (!body) throw new Error('Blob not found');
+    const extension = pathname.split('.').pop();
+    const contentType = extension === 'pdf'
+      ? 'application/pdf'
+      : extension === 'zip'
+        ? 'application/zip'
+        : extension === 'doc'
+          ? 'application/msword'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    return {
+      url,
+      pathname,
+      size: body.byteLength,
+      contentType,
+      etag: `etag-${pathname}`,
+      uploadedAt: new Date(),
+    };
+  }),
+  get: vi.fn(async (url: string) => {
+    const pathname = new URL(url).pathname.replace(/^\/+/, '');
+    const body = blobBodies.get(pathname);
+    if (!body) return null;
+    return {
+      statusCode: 200,
+      stream: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body);
+          controller.close();
+        },
+      }),
+      blob: {
+        pathname,
+        size: body.byteLength,
+        etag: `etag-${pathname}`,
+      },
+    };
+  }),
 }));
 
 describe('Immutable manuscript case-file core', () => {
@@ -48,6 +97,7 @@ describe('Immutable manuscript case-file core', () => {
 
   beforeEach(async () => {
     await resetTestDatabase();
+    blobBodies.clear();
     const users = await db`
       INSERT INTO users (username, password_hash, name, email, role, is_verified)
       VALUES
@@ -99,6 +149,78 @@ describe('Immutable manuscript case-file core', () => {
     await expect(
       db`UPDATE document_versions SET original_filename = 'tampered.docx' WHERE id = ${version.rows[0].id}`,
     ).rejects.toThrow(/immutable case-file records/i);
+  });
+
+  it('finalizes direct private uploads without sending file bodies through the submission route', async () => {
+    const draft = await db`
+      INSERT INTO submissions (
+        title, abstract, keywords, author_name, author_email,
+        file_path, status, current_stage, date_submitted
+      )
+      VALUES (
+        'Direct Upload Study', 'Draft abstract', 'upload, archive', ${author.name}, ${author.email},
+        '', 'draft', 'draft', ''
+      )
+      RETURNING id, public_id
+    `;
+    const definitions = [
+      ['manuscript', 'anonymous.docx'],
+      ['title_page', 'title-page.docx'],
+      ['supplementary', 'data.zip'],
+      ['copyright_form', 'copyright.pdf'],
+      ['similarity_report', 'similarity.pdf'],
+      ['ethics_approval', 'ethics.pdf'],
+    ] as const;
+    const documents = [];
+    for (const [index, [kind, originalFilename]] of definitions.entries()) {
+      const uploadId = `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`;
+      const pathname = `manuscripts/${draft.rows[0].public_id}/${kind}/${uploadId}-${originalFilename}`;
+      const content = Buffer.from(`direct upload ${kind}`);
+      const blob = await put(pathname, content, { access: 'private' });
+      documents.push({
+        kind,
+        url: blob.url,
+        pathname: blob.pathname,
+        originalFilename,
+      });
+    }
+
+    const submissionId = await createSubmittedCaseFileFromBlobs({
+      draftId: Number(draft.rows[0].id),
+      metadata: {
+        title: 'Direct Upload Study',
+        abstract: 'A complete abstract for direct upload verification.',
+        keywords: 'upload, archive',
+        authorName: author.name,
+        authorEmail: author.email,
+        submissionType: 'Research Article',
+        language: 'English',
+        coAuthors: [],
+        checklistConfirmed: true,
+      },
+      documents,
+      actor: author,
+    });
+
+    const submission = await db`SELECT status, file_path FROM submissions WHERE id = ${submissionId}`;
+    expect(submission.rows[0].status).toBe('submitted');
+    expect(submission.rows[0].file_path).toContain('/manuscript/');
+
+    const versions = await db`
+      SELECT kind, original_filename, sha256
+      FROM document_versions
+      JOIN submission_documents ON submission_documents.id = document_versions.document_id
+      WHERE document_versions.submission_id = ${submissionId}
+      ORDER BY kind
+    `;
+    expect(versions.rows).toHaveLength(6);
+    for (const version of versions.rows) {
+      const expected = crypto
+        .createHash('sha256')
+        .update(`direct upload ${version.kind}`)
+        .digest('hex');
+      expect(version.sha256).toBe(expected);
+    }
   });
 
   it('permits only the one-time checksum backfill for a legacy version', async () => {

@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
 import { safeJson } from '@/lib/clientFetch';
+import {
+  MAX_SUBMISSION_FILE_SIZE,
+  safeSubmissionFilename,
+  type InitialDocumentKind,
+} from '@/lib/submissionFiles';
 import {
   ChevronRight, ChevronLeft, Check, X, Plus, Trash2,
   FileText, Users, Paperclip, Info, Eye, Upload,
@@ -89,12 +95,12 @@ const CHECKLIST_ITEMS = [
 ];
 
 const FILE_SLOTS = [
-  { key: 'fullText' as const, label: 'Full Text (Blinded Manuscript)', required: true, accept: '.pdf,.doc,.docx' },
-  { key: 'supplementary' as const, label: 'Supplementary Files', required: true, accept: '.pdf,.doc,.docx,.zip' },
-  { key: 'titlePage' as const, label: 'Title Page (with author info)', required: true, accept: '.pdf,.doc,.docx' },
-  { key: 'copyrightForm' as const, label: 'Copyright Transfer Form', required: true, accept: '.pdf,.doc,.docx' },
-  { key: 'similarityReport' as const, label: 'Similarity / Plagiarism Report', required: true, accept: '.pdf' },
-  { key: 'ethicsApproval' as const, label: 'Ethics Committee Approval', required: true, accept: '.pdf,.doc,.docx' },
+  { key: 'fullText' as const, kind: 'manuscript' as const, label: 'Full Text (Blinded Manuscript)', required: true, accept: '.pdf,.doc,.docx' },
+  { key: 'supplementary' as const, kind: 'supplementary' as const, label: 'Supplementary Files', required: true, accept: '.pdf,.doc,.docx,.zip' },
+  { key: 'titlePage' as const, kind: 'title_page' as const, label: 'Title Page (with author info)', required: true, accept: '.pdf,.doc,.docx' },
+  { key: 'copyrightForm' as const, kind: 'copyright_form' as const, label: 'Copyright Transfer Form', required: true, accept: '.pdf,.doc,.docx' },
+  { key: 'similarityReport' as const, kind: 'similarity_report' as const, label: 'Similarity / Plagiarism Report', required: true, accept: '.pdf' },
+  { key: 'ethicsApproval' as const, kind: 'ethics_approval' as const, label: 'Ethics Committee Approval', required: true, accept: '.pdf,.doc,.docx' },
 ];
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -168,8 +174,8 @@ function KeywordInput({ keywords, onChange }: { keywords: string[]; onChange: (k
   );
 }
 
-function FileSlotRow({ slotLabel, slotKey, required, accept, value, onChange }: {
-  slotLabel: string; slotKey: string; required: boolean; accept: string;
+function FileSlotRow({ slotLabel, required, accept, value, onChange }: {
+  slotLabel: string; required: boolean; accept: string;
   value: FileMeta | null; onChange: (file: FileMeta | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +244,7 @@ function AccordionSection({ title, defaultOpen, children }: { title: string; def
 
 export default function SubmissionWizard({ session, initialDraft, onSuccess, onClose }: WizardProps) {
   const [draftId, setDraftId] = useState<number | null>(initialDraft?.id || null);
+  const [draftPublicId, setDraftPublicId] = useState<string | null>(initialDraft?.public_id || null);
   const [step, setStep] = useState(() => {
     if (initialDraft?.draft_step) {
       return Math.max(0, Math.min(STEPS.length - 1, initialDraft.draft_step - 1));
@@ -246,6 +253,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
   });
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
 
   // Step 1
@@ -333,7 +341,9 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
 
   // ── Draft Save ────────────────────────────────────────────────────────────
 
-  const saveDraft = useCallback(async (currentStep: number): Promise<boolean> => {
+  const saveDraft = useCallback(async (
+    currentStep: number,
+  ): Promise<{ id: number; publicId: string } | null> => {
     setSaving(true);
     setError('');
     try {
@@ -355,6 +365,8 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
         if (!res.ok) throw new Error('Could not save draft');
         const data = await safeJson(res);
         setDraftId(data.id);
+        setDraftPublicId(data.public_id);
+        return { id: Number(data.id), publicId: String(data.public_id) };
       } else {
         // Patch existing draft
         const payload: Record<string, any> = {
@@ -372,6 +384,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
           supporting_institution: s4.supportingInstitution,
           acknowledgements: s4.acknowledgements,
           editor_note: noteToEditor,
+          checklist_confirmed: checklist.every(Boolean),
         };
         const res = await fetch(`/api/submissions/${draftId}`, {
           method: 'POST',
@@ -379,15 +392,19 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error('Could not save draft');
+        const data = await safeJson(res);
+        const publicId = String(data.public_id || draftPublicId || '');
+        if (!publicId) throw new Error('Draft identifier is missing');
+        setDraftPublicId(publicId);
+        return { id: draftId, publicId };
       }
-      return true;
     } catch (e: any) {
       setError(e.message || 'Error saving draft');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
-  }, [draftId, s1, coAuthors, s4, noteToEditor]);
+  }, [draftId, draftPublicId, s1, coAuthors, s4, noteToEditor, checklist]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -395,8 +412,8 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     const err = validateStep(step);
     if (err) { setError(err); return; }
     setError('');
-    const ok = await saveDraft(step);
-    if (ok) {
+    const saved = await saveDraft(step);
+    if (saved) {
       setStep(s => s + 1);
     }
   };
@@ -414,34 +431,87 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     if (!files.fullText) { setError('Full text file is required.'); return; }
     setSubmitting(true);
     setError('');
+    setUploadProgress('');
 
     try {
-      const formData = new FormData();
-      formData.append('title', s1.title);
-      formData.append('abstract', s1.abstract);
-      formData.append('keywords', s1.keywords.join(', '));
-      formData.append('submission_type', s1.submissionType);
-      formData.append('topic', s1.topic);
-      formData.append('language', s1.language);
-      formData.append('short_title', s1.shortTitle);
-      formData.append('co_authors', JSON.stringify(coAuthors));
-      formData.append('project_number', s4.projectNumber);
-      formData.append('ethics_statement', s4.ethicsStatement);
-      formData.append('supporting_institution', s4.supportingInstitution);
-      formData.append('acknowledgements', s4.acknowledgements);
-      formData.append('editor_note', noteToEditor);
-      formData.append('checklist_confirmed', 'true');
-      if (draftId) formData.append('draft_id', String(draftId));
-      formData.append('file', files.fullText.file, files.fullText.name);
-      if (files.titlePage) formData.append('file_title_page', files.titlePage.file, files.titlePage.name);
-      if (files.supplementary) formData.append('file_supplementary', files.supplementary.file, files.supplementary.name);
-      if (files.copyrightForm) formData.append('file_copyright_form', files.copyrightForm.file, files.copyrightForm.name);
-      if (files.similarityReport) formData.append('file_similarity_report', files.similarityReport.file, files.similarityReport.name);
-      if (files.ethicsApproval) formData.append('file_ethics_approval', files.ethicsApproval.file, files.ethicsApproval.name);
+      const selectedFiles = FILE_SLOTS.map(slot => ({
+        kind: slot.kind as InitialDocumentKind,
+        label: slot.label,
+        value: files[slot.key],
+      }));
+      for (const item of selectedFiles) {
+        if (!item.value) throw new Error(`${item.label} is required.`);
+        if (item.value.file.size > MAX_SUBMISSION_FILE_SIZE) {
+          throw new Error(`${item.label} must be less than 20MB.`);
+        }
+      }
 
+      setUploadProgress('Saving final draft details...');
+      const savedDraft = await saveDraft(4);
+      if (!savedDraft) {
+        setSubmitting(false);
+        setUploadProgress('');
+        return;
+      }
+
+      const documents: Array<{
+        kind: InitialDocumentKind;
+        url: string;
+        pathname: string;
+        originalFilename: string;
+      }> = [];
+      for (const [index, item] of selectedFiles.entries()) {
+        const value = item.value!;
+        const uploadId = crypto.randomUUID();
+        const pathname =
+          `manuscripts/${savedDraft.publicId}/${item.kind}/${uploadId}-` +
+          safeSubmissionFilename(value.name);
+        setUploadProgress(`Uploading ${index + 1} of ${selectedFiles.length}: ${item.label}`);
+        const blob = await upload(pathname, value.file, {
+          access: 'private',
+          handleUploadUrl: '/api/submissions/upload',
+          clientPayload: JSON.stringify({
+            draftId: savedDraft.id,
+            kind: item.kind,
+            originalFilename: value.name,
+            uploadId,
+          }),
+          contentType: value.file.type || undefined,
+          multipart: value.file.size > 4 * 1024 * 1024,
+        });
+        documents.push({
+          kind: item.kind,
+          url: blob.url,
+          pathname: blob.pathname,
+          originalFilename: value.name,
+        });
+      }
+
+      setUploadProgress('Verifying files and completing submission...');
       const res = await fetch('/api/submissions', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-requested-with': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          draft_id: savedDraft.id,
+          title: s1.title,
+          abstract: s1.abstract,
+          keywords: s1.keywords.join(', '),
+          submission_type: s1.submissionType,
+          topic: s1.topic,
+          language: s1.language,
+          short_title: s1.shortTitle,
+          co_authors: coAuthors,
+          project_number: s4.projectNumber,
+          ethics_statement: s4.ethicsStatement,
+          supporting_institution: s4.supportingInstitution,
+          acknowledgements: s4.acknowledgements,
+          editor_note: noteToEditor,
+          checklist_confirmed: true,
+          documents,
+        }),
       });
 
       if (!res.ok) {
@@ -453,6 +523,7 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
     } catch (e: any) {
       setError(e.message || 'Submission failed');
       setSubmitting(false);
+      setUploadProgress('');
     }
   };
 
@@ -609,7 +680,6 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
                 <FileSlotRow
                   key={slot.key}
                   slotLabel={slot.label}
-                  slotKey={slot.key}
                   required={slot.required}
                   accept={slot.accept}
                   value={files[slot.key]}
@@ -761,6 +831,11 @@ export default function SubmissionWizard({ session, initialDraft, onSuccess, onC
             {saving && (
               <span className="text-[10px] text-text-muted font-sans flex items-center gap-1">
                 <Loader2 size={11} className="animate-spin" /> Saving draft...
+              </span>
+            )}
+            {submitting && uploadProgress && !saving && (
+              <span className="text-[10px] text-text-muted font-sans flex items-center gap-1">
+                <Loader2 size={11} className="animate-spin" /> {uploadProgress}
               </span>
             )}
           </div>
