@@ -3,13 +3,13 @@ import React from 'react';
 export default function EditorialTeam() {
   const editorialRoles = [
     {
-      title: 'Chief Editor',
+      title: 'Editor in Chief',
       members: [
-        { name: 'Prof. Dr. İbrahim Hakan Karataş', institution: 'Istanbul Medeniyet University, Türkiye' }
+        { name: 'Prof. Dr. İbrahim Hakan Karataş', institution: 'İstanbul Medeniyet University, Türkiye' }
       ]
     },
     {
-      title: 'Assistant Editor',
+      title: 'Assistant Editors',
       members: [
         { name: 'Dr. Huzaife Abdallah', institution: 'Cavendish University, Uganda' }
       ]
@@ -17,35 +17,29 @@ export default function EditorialTeam() {
     {
       title: 'Section Editors',
       members: [
-        { role: 'Politics and Diplomacy', name: 'Prof. Dr. İsmail Ermağan', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { role: 'Economics and Trade', name: 'Dr. Zaid Sekito', institution: 'Makerere University, Uganda' },
+        { role: 'Politics and Diplomacy', name: 'Dr. Huzaife Abdallah', institution: 'Cavendish University, Uganda' },
+        { role: 'Economics and Trade', name: 'Dr. Huzaife Abdallah', institution: 'Cavendish University, Uganda' },
         { role: 'Social and Cultural Studies', name: 'Dr. Hawa Kasula', institution: 'Makerere University, Uganda' },
         { role: 'Environmental Studies and Sustainability', name: 'Dr. Charles Kayasanku', institution: 'Makerere University, Uganda' },
+        { role: 'Public Health and Climate Change', name: 'Dr. Charles Kayasanku', institution: 'Makerere University, Uganda' },
         { role: 'Education and Human Development', name: 'Dr. Alfred Buluma', institution: 'Makerere University, Uganda' },
-        { role: 'Technology and AI', name: 'Dr. Serkan Uçan', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { role: 'Public Health and Climate Change', name: 'Prof. Dr. Tunç Kutoğlu', institution: 'İstanbul Medeniyet University, Türkiye' }
+        { role: 'Technology and AI', name: 'Dr. Serkan Uçan', institution: 'İstanbul Medeniyet University, Türkiye' }
       ]
     },
     {
       title: 'International Advisory Board',
       members: [
         { name: 'Prof. Anthony Muwagga Mugaga', institution: 'Makerere University, Uganda' },
-        { name: 'Prof. Dr. Abu Bakarr Bah', institution: 'Northern Illinois University, USA' },
         { name: 'Prof. Dr. İsmail Ermağan', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { name: 'Prof. Dr. Laban Ayiro', institution: 'Daystar University, Kenya' }
-      ]
-    },
-    {
-      title: 'Peer Review Board',
-      members: [
         { name: 'Dr. Feride Öksüz Gül', institution: 'İstanbul Medeniyet University, Türkiye' },
         { name: 'Doç. Dr. Ömer Avcı', institution: 'İstanbul Medeniyet University, Türkiye' },
         { name: 'Doç. Dr. Mithat Korumaz', institution: 'Yıldız Technical University, Türkiye' },
         { name: 'Dr. Cherno Jallow', institution: 'University of the Gambia, The Gambia' },
         { name: 'Dr. Bubacar Malang Fatty', institution: 'University of the Gambia, The Gambia' },
         { name: 'Dr. Rodrigue Bazame', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
-        { name: 'Dr. Abdramane Bassiahi SOURA', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
-        { name: 'Dr. Georges Guiella', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' }
+        { name: 'Dr. Abdramane Bassiahi Soura', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
+        { name: 'Dr. Georges Guiella', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
+        { name: 'Dr. Abdishakur Tarah', institution: 'Nottingham Trent University, UK' }
       ]
     },
     {
