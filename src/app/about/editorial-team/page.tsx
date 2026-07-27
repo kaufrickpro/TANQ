@@ -30,26 +30,41 @@ export default function EditorialTeam() {
       title: 'International Advisory Board',
       members: [
         { name: 'Prof. Anthony Muwagga Mugaga', institution: 'Makerere University, Uganda' },
-        { name: 'Prof. Dr. İsmail Ermağan', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { name: 'Dr. Feride Öksüz Gül', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { name: 'Doç. Dr. Ömer Avcı', institution: 'İstanbul Medeniyet University, Türkiye' },
-        { name: 'Doç. Dr. Mithat Korumaz', institution: 'Yıldız Technical University, Türkiye' },
-        { name: 'Dr. Cherno Jallow', institution: 'University of the Gambia, The Gambia' },
-        { name: 'Dr. Bubacar Malang Fatty', institution: 'University of the Gambia, The Gambia' },
-        { name: 'Dr. Rodrigue Bazame', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
-        { name: 'Dr. Abdramane Bassiahi Soura', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
-        { name: 'Dr. Georges Guiella', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
         { name: 'Dr. Abdishakur Tarah', institution: 'Nottingham Trent University, UK' }
+      ]
+    },
+    {
+      title: 'Academic Board',
+      members: [
+        { name: 'Dr. Huzaife Abdallah', institution: 'Cavendish University, Uganda' },
+        { name: 'Dr. Ömer Avcı', institution: 'İstanbul Medeniyet University, Türkiye' },
+        { name: 'Dr. Rodrigue Bazame', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
+        { name: 'Dr. Alfred Buluma', institution: 'Makerere University, Uganda' },
+        { name: 'Dr. Onoyona-Ekeocha, Isoken Erhowo', institution: 'University of Ibadan, Nigeria' },
+        { name: 'Dr. İsmail Ermağan', institution: 'İstanbul Medeniyet University, Türkiye' },
+        { name: 'Dr. Bubacar Malang Fatty', institution: 'University of the Gambia, The Gambia' },
+        { name: 'Dr. Georges Guiella', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
+        { name: 'Dr. Cherno Jallow', institution: 'University of the Gambia, The Gambia' },
+        { name: 'Dr. Charles Kayasanku', institution: 'Makerere University, Uganda' },
+        { name: 'Dr. Hawa Kasula', institution: 'Makerere University, Uganda' },
+        { name: 'Dr. Mithat Korumaz', institution: 'Yıldız Technical University, Türkiye' },
+        { name: 'Dr. Daniel Kumah', institution: 'University of Ghana, Legon, Ghana' },
+        { name: 'Dr. Feride Öksüz Gül', institution: 'İstanbul Medeniyet University, Türkiye' },
+        { name: 'Dr. Abdramane Bassiahi Soura', institution: 'Université Pr Joseph KI-ZERBO, Burkina Faso' },
+        { name: 'Dr. Abdishakur Tarah', institution: 'Nottingham Trent University, UK' },
+        { name: 'Dr. Peter Yidana', institution: 'C. K. Tedam University of Technology and Applied Sciences, Ghana' }
       ]
     },
     {
       title: 'Editorial & Support Staff',
       members: [
-        { role: 'Language Editor', name: 'Pamela Atukundire', institution: 'Uganda' },
-        { role: 'Academic Secretariat', name: 'Janeth Kilasi', institution: 'Tanzania' },
-        { role: 'Academic Secretariat', name: 'Ashwag Mohammad Salih Mohammad', institution: 'SUST, Sudan' },
-        { role: 'Technical Support', name: 'Nurgün Varol', institution: 'Türkiye' },
-        { role: 'Technical Support', name: 'Zahraa Adam Abdalla', institution: 'SUST, Sudan' }
+        { role: 'Academic Secretariat', name: 'Hilal Karaoğlan', institution: 'Türkiye' },
+        { role: 'Language Editor (English, Swahili)', name: 'Pamela Atukundire', institution: 'Uganda' },
+        { role: 'Language Editor (English, Swahili)', name: 'Janeth Kilasi', institution: 'Tanzania' },
+        { role: 'Language Editor (English, Arabic)', name: 'Zahraa Adam Abdalla', institution: 'SUST, Sudan' },
+        { role: 'Language Editor (English, Arabic)', name: 'Ashwag Mohammad Salih Mohammad', institution: 'SUST, Sudan' },
+        { role: 'Language Editor (Türkçe)', name: 'Nurgün Varol', institution: 'Türkiye' },
+        { role: 'Technical Support', name: 'Nurgün Varol', institution: 'Türkiye' }
       ]
     }
   ];
