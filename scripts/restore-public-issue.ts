@@ -27,8 +27,8 @@ const articles = [
     abstract:
       'African Nexus Quarterly introduces an Africa-centered editorial lens hosted in Türkiye and oriented to the continent’s priorities. It argues for a scholarly platform that helps correct asymmetries in how knowledge about Africa is produced, validated, indexed, and circulated.',
     keywords: 'African studies, knowledge production, scholarly publishing, open access, research capacity',
-    doi: '',
-    pages: '1-6',
+    doi: '10.5281/zenodo.20682238',
+    pages: '1-7',
     pdfUrl: '/articles/01_TANQ-Editorial.pdf',
     type: 'Editorial',
     datePublished: '2026-03-01'
@@ -41,8 +41,8 @@ const articles = [
       "Uganda's Competency-Based Curriculum aims to equip learners with 21st-century skills through learner-centred teaching, formative assessments, and criterion-referenced evaluation. This qualitative multiple-case study examines teachers' proficiency in marking and feedback practices in two public lower secondary schools in Mpigi District, revealing systemic gaps in marking methods, rubric use, feedback quality, training, resources, and class size.",
     keywords:
       'Competency-based curriculum, formative assessment, teacher proficiency, marking and feedback, formative assessment literacy',
-    doi: '10.58737/saj.2026.01.0042',
-    pages: '1-18',
+    doi: '',
+    pages: '8-27',
     pdfUrl: '/articles/02_TANQ-Bridging the Gaps_.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
@@ -53,8 +53,8 @@ const articles = [
     abstract:
       'This paper examines progress and gaps in women’s participation in political leadership and security sector integration across East African Community partner states. Drawing on National Action Plans, regional action plans, and key informant interviews, it argues for a more intentional and coordinated regional approach to gender-responsive security sector reform and inclusive governance.',
     keywords: 'participation, prevention, protection, relief and recovery, women, peace, security',
-    doi: '10.58737/saj.2026.01.0042',
-    pages: '1-11',
+    doi: '',
+    pages: '28-38',
     pdfUrl: '/articles/03_TANQ-WPS article.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
@@ -68,7 +68,7 @@ const articles = [
     keywords:
       'Indigenous Knowledge Systems, curriculum decolonisation, knowledge democracy, structural institutionalisation, African higher education',
     doi: '',
-    pages: '1-15',
+    pages: '39-52',
     pdfUrl: '/articles/04_TANQ-Symbolic inclusions.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
@@ -82,7 +82,7 @@ const articles = [
     keywords:
       'Comprehensive internationalisation, higher education, Türkiye, institutional capacity, academic leadership, İstanbul Medeniyet University',
     doi: '',
-    pages: '1-15',
+    pages: '53-71',
     pdfUrl: '/articles/05_TANQ-IMU-Strategies.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
