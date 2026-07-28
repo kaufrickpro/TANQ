@@ -9,7 +9,7 @@ const issue = {
   year: 2026,
   month: 'March',
   title: 'African Nexus Quarterly, Volume 1 Issue 1',
-  issuePdfUrl: null as string | null
+  issuePdfUrl: '/volumes/ANQ-Volume-1-2026.pdf'
 };
 
 const volume = {
@@ -17,7 +17,7 @@ const volume = {
   year: 2026,
   title: 'African Nexus Quarterly, Volume 1',
   subtitle: 'Issue 01 · March 2026',
-  pdfUrl: '/volumes/TANQ-Volume-1-2026.pdf'
+  pdfUrl: '/volumes/ANQ-Volume-1-2026.pdf'
 };
 
 const articles = [
@@ -29,7 +29,7 @@ const articles = [
     keywords: 'African studies, knowledge production, scholarly publishing, open access, research capacity',
     doi: '10.5281/zenodo.20682238',
     pages: '1-7',
-    pdfUrl: '/articles/01_TANQ-Editorial.pdf',
+    pdfUrl: '/articles/01_ANQ-Editorial.pdf',
     type: 'Editorial',
     datePublished: '2026-03-01'
   },
@@ -43,7 +43,7 @@ const articles = [
       'Competency-based curriculum, formative assessment, teacher proficiency, marking and feedback, formative assessment literacy',
     doi: '',
     pages: '8-27',
-    pdfUrl: '/articles/02_TANQ-Bridging the Gaps_.pdf',
+    pdfUrl: '/articles/02_ANQ-Bridging the Gaps_.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
   },
@@ -55,7 +55,7 @@ const articles = [
     keywords: 'participation, prevention, protection, relief and recovery, women, peace, security',
     doi: '',
     pages: '28-38',
-    pdfUrl: '/articles/03_TANQ-WPS article.pdf',
+    pdfUrl: '/articles/03_ANQ-WPS article.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
   },
@@ -69,7 +69,7 @@ const articles = [
       'Indigenous Knowledge Systems, curriculum decolonisation, knowledge democracy, structural institutionalisation, African higher education',
     doi: '',
     pages: '39-52',
-    pdfUrl: '/articles/04_TANQ-Symbolic inclusions.pdf',
+    pdfUrl: '/articles/04_ANQ-Symbolic inclusions.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
   },
@@ -83,7 +83,7 @@ const articles = [
       'Comprehensive internationalisation, higher education, Türkiye, institutional capacity, academic leadership, İstanbul Medeniyet University',
     doi: '',
     pages: '53-71',
-    pdfUrl: '/articles/05_TANQ-IMU-Strategies.pdf',
+    pdfUrl: '/articles/05_ANQ-IMU-Strategies.pdf',
     type: 'Research Article',
     datePublished: '2026-03-01'
   }
@@ -146,7 +146,7 @@ async function restoreArticle(issueId: number, article: (typeof articles)[number
   const existing = await sql`
     SELECT id
     FROM articles
-    WHERE issue_id = ${issueId} AND pdf_url = ${article.pdfUrl}
+    WHERE issue_id = ${issueId} AND title = ${article.title}
     LIMIT 1
   `;
 
@@ -159,6 +159,7 @@ async function restoreArticle(issueId: number, article: (typeof articles)[number
           keywords = ${article.keywords},
           doi = ${article.doi},
           pages = ${article.pages},
+          pdf_url = ${article.pdfUrl},
           type = ${article.type},
           date_published = ${article.datePublished}
       WHERE id = ${existing.rows[0].id}

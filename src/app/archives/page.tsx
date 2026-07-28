@@ -175,12 +175,15 @@ export default async function ArchivesPage() {
             {/* Issue Cards Grid */}
             {issues.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {issues.map(({ issue, articles }) => (
-                  <div
-                    id={`issue-${issue.id}`}
-                    key={issue.id}
-                    className="bg-bg-card border border-border-custom p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow duration-200"
-                  >
+                {issues.map(({ issue, articles }) => {
+                  const issuePdfUrl = issue.issue_pdf_url || volume.pdf_url;
+
+                  return (
+                    <div
+                      id={`issue-${issue.id}`}
+                      key={issue.id}
+                      className="bg-bg-card border border-border-custom p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow duration-200"
+                    >
                     {/* Issue Cover Thumbnail */}
                     <div className="flex justify-center mb-4">
                       <JournalCover size="sm" />
@@ -217,16 +220,17 @@ export default async function ArchivesPage() {
                     {/* Actions footer of issue card */}
                     <div className="border-t border-border-light mt-5 pt-3 flex items-center justify-between gap-3 font-sans font-bold text-[10px] uppercase tracking-wider text-text-muted">
                       <span>Issue available</span>
-                      {issue.issue_pdf_url ? (
-                        <a href={issue.issue_pdf_url} download className="text-link hover:text-link-hover">
+                      {issuePdfUrl ? (
+                        <a href={issuePdfUrl} download className="text-link hover:text-link-hover">
                           Download PDF ↓
                         </a>
                       ) : (
                         <span className="normal-case font-normal text-text-muted/60">PDF pending</span>
                       )}
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="bg-bg-card border border-border-custom px-6 py-8 rounded-sm text-center">
