@@ -36,7 +36,7 @@ export default function AuthorGuidelines() {
           </p>
           <ul className="list-disc pl-5 space-y-2">
             <li><strong>Title Page (Separate):</strong> Full title, all author names and institutional affiliations, contact information for the corresponding author, and ORCID IDs.</li>
-            <li><strong>Abstract:</strong> A concise and factual abstract of 150-250 words stating the research purpose, methodology, main findings, and major conclusions.</li>
+            <li><strong>Abstract:</strong> A concise and factual abstract of 100-150 words stating the research purpose, methodology, main findings, and major conclusions.</li>
             <li><strong>Keywords:</strong> 4 to 6 keywords immediately following the abstract.</li>
             <li><strong>Main Body:</strong> Must be less than 8,000 words (including references, appendixes, tables, and figures).
               <ul className="list-circle pl-5 mt-1.5 text-text-muted space-y-1">

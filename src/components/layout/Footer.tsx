@@ -24,7 +24,7 @@ export default function Footer() {
             <div className="text-xs space-y-1 font-serif">
               <p><strong>Published by:</strong> Okul Yöneticileri Derneği (School Administrators Association)</p>
               <p><strong>Website:</strong> <a href="http://www.okulyoneticileri.org.tr" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">www.okulyoneticileri.org.tr</a></p>
-              <p><strong>Email:</strong> <a href="mailto:info@okulyoneticileri.org.tr" className="underline hover:text-white transition-colors">info@okulyoneticileri.org.tr</a></p>
+              <p><strong>Email:</strong> <a href="mailto:bilgi@okulyoneticileri.org.tr" className="underline hover:text-white transition-colors">bilgi@okulyoneticileri.org.tr</a></p>
             </div>
           </div>
 

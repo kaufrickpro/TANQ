@@ -4,6 +4,7 @@ import Image from 'next/image';
 import db from '@/lib/db';
 import { Book } from 'lucide-react';
 import JournalCover from '@/components/journal/JournalCover';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Issue {
   id: number;
@@ -121,7 +122,7 @@ export default async function CurrentIssuePage() {
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
                 {issue.issue_pdf_url && (
                   <a
-                    href={issue.issue_pdf_url}
+                    href={publicationPdfHref('issue', issue.id)}
                     download
                     className="flex items-center justify-center gap-2 bg-olive hover:bg-link-hover text-white px-6 py-3.5 rounded-sm font-sans font-bold text-xs uppercase tracking-[0.15em] transition-colors shadow-sm cursor-pointer animate-none"
                   >
@@ -181,7 +182,7 @@ export default async function CurrentIssuePage() {
                       </div>
                       <div className="flex gap-4 shrink-0">
                         <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
-                        <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
+                        <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                       </div>
                     </div>
                   </div>
@@ -218,7 +219,7 @@ export default async function CurrentIssuePage() {
                       </div>
                       <div className="flex gap-4 shrink-0">
                         <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="text-link hover:text-link-hover">Abstract</Link>
-                        <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
+                        <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, FileText } from 'lucide-react';
 import type { JournalVolume, Issue } from '../page';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface VolumePdfManagerProps {
   volumes: JournalVolume[];
@@ -78,7 +79,7 @@ export default function VolumePdfManager({
                   </p>
                 </div>
                 {volumeItem.pdf_url ? (
-                  <a href={volumeItem.pdf_url} download className="text-[10px] text-olive font-bold hover:underline shrink-0 uppercase tracking-wider">
+                  <a href={publicationPdfHref('volume', volumeItem.id)} download className="text-[10px] text-olive font-bold hover:underline shrink-0 uppercase tracking-wider">
                     Download
                   </a>
                 ) : (

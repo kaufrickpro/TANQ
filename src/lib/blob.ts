@@ -43,15 +43,24 @@ export async function get(url: string, options?: any): Promise<any> {
   }
   console.log(`[Mock Blob] get called for url: ${url}`);
 
+  const body = new Blob(['Mock file content for development QA.'], {
+    type: 'application/pdf',
+  });
+
   return {
     statusCode: 200,
-    blob: async () => new Blob(['Mock file content for development QA.']),
-    text: async () => 'Mock file content for development QA.',
-    arrayBuffer: async () => new ArrayBuffer(0),
-    stream: () => {
-      // Node.js stream fallback
-      const { Readable } = require('stream');
-      return Readable.from(['Mock file content for development QA.']);
+    stream: body.stream(),
+    headers: new Headers({ 'Content-Type': body.type }),
+    blob: {
+      url,
+      downloadUrl: url,
+      pathname: new URL(url).pathname.slice(1),
+      contentType: body.type,
+      contentDisposition: 'attachment',
+      cacheControl: 'public, max-age=60',
+      size: body.size,
+      uploadedAt: new Date(),
+      etag: 'mock-get-etag',
     },
   };
 }

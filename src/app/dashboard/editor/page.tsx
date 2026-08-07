@@ -12,6 +12,7 @@ import AccountManagementSection from './_components/AccountManagementSection';
 import { useEditorDashboard } from './_hooks/useEditorDashboard';
 import SubmissionQueue, { type SubmissionQueueItem } from '@/components/SubmissionQueue';
 import ArticleManager from './_components/ArticleManager';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 export interface Submission {
   id: number;
@@ -440,7 +441,7 @@ export default function EditorDashboard() {
                                 <p className="text-[10px] text-text-muted truncate mt-0.5">{v.title}</p>
                               </div>
                               {v.pdf_url ? (
-                                <a href={v.pdf_url} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
+                                <a href={publicationPdfHref('volume', v.id)} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
                               ) : (
                                 <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
                               )}
@@ -481,7 +482,7 @@ export default function EditorDashboard() {
                                   Articles
                                 </button>
                                 {iss.issue_pdf_url ? (
-                                  <a href={iss.issue_pdf_url} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
+                                  <a href={publicationPdfHref('issue', iss.id)} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
                                 ) : (
                                   <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
                                 )}

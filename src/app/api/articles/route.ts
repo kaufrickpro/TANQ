@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { put } from '@/lib/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
+import { savePublicationPdf } from '@/lib/publicationPdfs';
 
 function getString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -14,18 +14,6 @@ function getNumber(formData: FormData, key: string): number | undefined {
   if (!str) return undefined;
   const value = Number(str);
   return Number.isFinite(value) ? value : undefined;
-}
-
-async function savePdfFile(file: File) {
-  if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    throw new Error('Only PDF files are supported');
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const blobName = `articles/${Date.now()}_${safeName}`;
-  const blob = await put(blobName, file, { access: 'public' });
-
-  return blob.url;
 }
 
 export async function GET(request: Request) {
@@ -102,7 +90,7 @@ export async function POST(request: Request) {
 
       let pdfUrl = '';
       try {
-        pdfUrl = await savePdfFile(file);
+        pdfUrl = await savePublicationPdf(file, 'article');
       } catch (err: any) {
         return NextResponse.json({ error: err.message || 'File upload failed' }, { status: 400 });
       }
@@ -136,7 +124,7 @@ export async function POST(request: Request) {
       let pdfUrl: string | null = null;
       if (file) {
         try {
-          pdfUrl = await savePdfFile(file);
+          pdfUrl = await savePublicationPdf(file, 'article');
         } catch (err: any) {
           return NextResponse.json({ error: err.message || 'File upload failed' }, { status: 400 });
         }

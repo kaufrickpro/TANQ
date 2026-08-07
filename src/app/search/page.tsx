@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import db from '@/lib/db';
 import { Search, FileText } from 'lucide-react';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Article {
   id: number;
@@ -111,7 +112,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                   <span className="min-w-0">Published: <span className="normal-case font-normal text-text-primary break-all">{article.date_published}</span></span>
                   <div className="flex gap-4 shrink-0">
                     <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                    <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
+                    <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                   </div>
                 </div>
               </div>

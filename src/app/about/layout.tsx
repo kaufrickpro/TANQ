@@ -98,8 +98,8 @@ export default function AboutLayout({ children }: { children: React.ReactNode })
               <div className="space-y-3 font-serif text-xs text-text-primary">
                 <div>
                   <span className="font-bold text-[10px] font-sans uppercase tracking-wider block text-text-muted">Email</span>
-                  <a href="mailto:info@okulyoneticileri.org.tr" className="text-link hover:text-link-hover hover:underline transition-colors break-all">
-                    info@okulyoneticileri.org.tr
+                  <a href="mailto:bilgi@okulyoneticileri.org.tr" className="text-link hover:text-link-hover hover:underline transition-colors break-all">
+                    bilgi@okulyoneticileri.org.tr
                   </a>
                 </div>
                 <div>

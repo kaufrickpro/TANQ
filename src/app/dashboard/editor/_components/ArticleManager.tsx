@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Issue } from '../page';
 import { safeJson } from '@/lib/clientFetch';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Article {
   id: number;
@@ -348,7 +349,7 @@ export default function ArticleManager({
                 {activeIssue.issue_pdf_url ? (
                   <div className="flex items-center gap-2 mt-1 font-sans">
                     <a 
-                      href={activeIssue.issue_pdf_url} 
+                      href={publicationPdfHref('issue', activeIssue.id)}
                       download 
                       className="inline-flex items-center gap-1 text-[10px] text-olive font-bold hover:underline"
                     >
@@ -673,7 +674,7 @@ export default function ArticleManager({
                       <div className="flex items-center justify-between border-t border-border-light mt-3 pt-2 font-sans text-[9px] text-text-muted">
                         <span>Article live in directory</span>
                         <a 
-                          href={article.pdf_url} 
+                          href={publicationPdfHref('article', article.id)}
                           download 
                           className="inline-flex items-center gap-0.5 text-[9px] font-bold text-olive hover:underline"
                         >

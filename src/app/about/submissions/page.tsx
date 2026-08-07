@@ -2,12 +2,45 @@ import React from 'react';
 import Link from 'next/link';
 import { FileDown, CheckCircle, ShieldAlert } from 'lucide-react';
 
+const downloadableDocuments = [
+  {
+    href: '/templates/T-ANQ Title Page Template.docx',
+    title: 'Title Page Template',
+    description: 'Separate file for author details',
+  },
+  {
+    href: '/templates/T-ANQ Manuscript Preparation Guidelines for Authors.docx',
+    title: 'Manuscript Preparation Guidelines',
+    description: 'Formatting and preparation requirements for authors',
+  },
+  {
+    href: '/templates/T-ANQ Cover Letter Template.docx',
+    title: 'Cover Letter Template',
+    description: 'Cover letter format for new submissions',
+  },
+  {
+    href: '/templates/T-ANQ Responses to the Reviewers.docx',
+    title: 'Responses to the Reviewers',
+    description: 'Structured response for revised submissions',
+  },
+  {
+    href: '/templates/T-ANQ Copyright Transfer & Declaration.docx',
+    title: 'Copyright Transfer & Declaration',
+    description: 'Copyright transfer and author declaration form',
+  },
+  {
+    href: '/templates/T-ANQ Copyright Transfer Agreement.docx',
+    title: 'Copyright Transfer Agreement',
+    description: 'Copyright agreement for accepted manuscripts',
+  },
+];
+
 export default function Submissions() {
   const checklistItems = [
     'The manuscript is written in clear, concise English.',
     'The main manuscript file has been completely blinded (all author names, affiliations, and acknowledgments removed).',
     'The separate Title Page is prepared containing all author details, ORCID IDs, and corresponding contact info.',
-    'The abstract is between 150 and 250 words and contains no citations.',
+    'The abstract is between 100 and 150 words and contains no citations.',
     '4 to 6 keywords are provided.',
     'Formatting complies with the APA 7th edition style guidelines.',
     'Word count is under 8,000 words (including tables, figures, and references).',
@@ -33,33 +66,22 @@ export default function Submissions() {
           Download Templates
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <a
-            href="/templates/African Nexus Quarterly-TitlePageTemplate.docx"
-            download
-            className="flex items-center gap-4 bg-bg-card p-4 border border-border-custom rounded-sm hover:border-olive hover:shadow-sm transition-all"
-          >
-            <div className="bg-sand/30 p-3 rounded-sm border border-border-light text-olive shrink-0">
-              <FileDown size={20} />
-            </div>
-            <div>
-              <h3 className="font-serif font-bold text-sm text-text-primary">Title Page Template</h3>
-              <p className="text-[10px] text-text-muted mt-0.5 font-serif">Separate file for author details</p>
-            </div>
-          </a>
-
-          <a
-            href="/templates/ANQ-Template-2026-ENG.docx"
-            download
-            className="flex items-center gap-4 bg-bg-card p-4 border border-border-custom rounded-sm hover:border-olive hover:shadow-sm transition-all"
-          >
-            <div className="bg-sand/30 p-3 rounded-sm border border-border-light text-olive shrink-0">
-              <FileDown size={20} />
-            </div>
-            <div>
-              <h3 className="font-serif font-bold text-sm text-text-primary">Manuscript Template</h3>
-              <p className="text-[10px] text-text-muted mt-0.5 font-serif">Blinded draft format (APA 7th)</p>
-            </div>
-          </a>
+          {downloadableDocuments.map((document) => (
+            <a
+              key={document.href}
+              href={document.href}
+              download
+              className="flex items-center gap-4 bg-bg-card p-4 border border-border-custom rounded-sm hover:border-olive hover:shadow-sm transition-all"
+            >
+              <div className="bg-sand/30 p-3 rounded-sm border border-border-light text-olive shrink-0">
+                <FileDown size={20} />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-sm text-text-primary">{document.title}</h3>
+                <p className="text-[10px] text-text-muted mt-0.5 font-serif">{document.description}</p>
+              </div>
+            </a>
+          ))}
         </div>
       </div>
 

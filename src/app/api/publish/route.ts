@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { put } from '@/lib/blob';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
 import { uploadDocumentVersion } from '@/lib/case-files/documents';
 import { transitionSubmission } from '@/lib/case-files/workflow';
 import { queueNotification } from '@/lib/notifications';
+import { savePublicationPdf } from '@/lib/publicationPdfs';
 import type { AuthUser } from '@/lib/session';
 
 function getString(formData: FormData, key: string): string {
@@ -18,18 +18,6 @@ function getNumber(formData: FormData, key: string): number | undefined {
   if (!str) return undefined;
   const value = Number(str);
   return Number.isFinite(value) ? value : undefined;
-}
-
-async function savePdfFile(file: File, folderName: 'issues' | 'volumes' | 'articles') {
-  if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    throw new Error('Only PDF files are supported');
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const blobName = `${folderName}/${Date.now()}_${safeName}`;
-  const blob = await put(blobName, file, { access: 'public' });
-
-  return blob.url;
 }
 
 export async function GET(request: Request) {
@@ -74,7 +62,7 @@ async function handleMultipartPost(request: Request, session: AuthUser) {
       return NextResponse.json({ error: 'Volume, year, title, and PDF file are required' }, { status: 400 });
     }
 
-    const pdfUrl = await savePdfFile(file, 'volumes');
+    const pdfUrl = await savePublicationPdf(file, 'volume');
     await db`
       INSERT INTO journal_volumes (volume, year, title, subtitle, pdf_url)
       VALUES (${volume}, ${year}, ${title}, ${subtitle || null}, ${pdfUrl})
@@ -101,7 +89,7 @@ async function handleMultipartPost(request: Request, session: AuthUser) {
       return NextResponse.json({ error: 'Missing required fields for creating an issue' }, { status: 400 });
     }
 
-    const issuePdfUrl = file ? await savePdfFile(file, 'issues') : null;
+    const issuePdfUrl = file ? await savePublicationPdf(file, 'issue') : null;
     
     const result = await db`
       INSERT INTO issues (volume, number, year, month, title, issue_pdf_url, is_published)
@@ -121,7 +109,7 @@ async function handleMultipartPost(request: Request, session: AuthUser) {
       return NextResponse.json({ error: 'Issue and PDF file are required' }, { status: 400 });
     }
 
-    const issuePdfUrl = await savePdfFile(file, 'issues');
+    const issuePdfUrl = await savePublicationPdf(file, 'issue');
     
     const result = await db`
       UPDATE issues 
@@ -174,7 +162,7 @@ async function handleMultipartPost(request: Request, session: AuthUser) {
     // Validate and save only after workflow eligibility has been confirmed.
     let pdfUrl = '';
     try {
-      pdfUrl = await savePdfFile(file, 'articles');
+      pdfUrl = await savePublicationPdf(file, 'article');
     } catch (err: any) {
       return NextResponse.json({ error: err.message || 'File upload failed. Make sure it is a PDF.' }, { status: 400 });
     }

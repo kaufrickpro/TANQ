@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import db from '@/lib/db';
 import JournalCover from '@/components/journal/JournalCover';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Article {
   id: number;
@@ -129,7 +130,7 @@ export default async function Home() {
                         <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
                         <div className="flex gap-4 shrink-0">
                           <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                          <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
+                          <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>
                     </div>
@@ -164,7 +165,7 @@ export default async function Home() {
                         <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
                         <div className="flex gap-4 shrink-0">
                           <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
-                          <a href={article.pdf_url} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
+                          <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
                         </div>
                       </div>
                     </div>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import db from '@/lib/db';
 import { Archive } from 'lucide-react';
 import JournalCover from '@/components/journal/JournalCover';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Issue {
   id: number;
@@ -161,7 +162,7 @@ export default async function ArchivesPage() {
               </div>
               {volume.pdf_url ? (
                 <a
-                  href={volume.pdf_url}
+                  href={publicationPdfHref('volume', volume.id)}
                   download
                   className="inline-flex items-center justify-center self-start sm:self-auto bg-olive hover:bg-link-hover text-white px-4 py-2 rounded-sm font-sans font-bold text-[10px] uppercase tracking-[0.14em] transition-colors"
                 >
@@ -176,7 +177,11 @@ export default async function ArchivesPage() {
             {issues.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {issues.map(({ issue, articles }) => {
-                  const issuePdfUrl = issue.issue_pdf_url || volume.pdf_url;
+                  const issuePdfUrl = issue.issue_pdf_url
+                    ? publicationPdfHref('issue', issue.id)
+                    : volume.pdf_url
+                      ? publicationPdfHref('volume', volume.id)
+                      : null;
 
                   return (
                     <div

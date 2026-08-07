@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import db from '@/lib/db';
 import CitationBlock from '@/components/journal/CitationBlock';
+import { publicationPdfHref } from '@/lib/publicationPdfPaths';
 
 interface Article {
   id: number;
@@ -147,7 +148,7 @@ export default async function ArticlePage({ params }: PageProps) {
                 Download the complete published article document in portable document format.
               </p>
               <a
-                href={article.pdf_url}
+                href={publicationPdfHref('article', article.id)}
                 download
                 className="block text-center bg-olive hover:bg-link-hover text-white py-3 rounded-sm font-sans font-bold text-xs uppercase tracking-[0.12em] transition-colors shadow-sm cursor-pointer"
               >
