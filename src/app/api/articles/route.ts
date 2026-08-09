@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getSessionUser } from '@/lib/session';
 import { validateSameOrigin } from '@/lib/sameOrigin';
-import { savePublicationPdf } from '@/lib/publicationPdfs';
+import { removePublicationPdf, savePublicationPdf } from '@/lib/publicationPdfs';
 
 function getString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -14,6 +14,18 @@ function getNumber(formData: FormData, key: string): number | undefined {
   if (!str) return undefined;
   const value = Number(str);
   return Number.isFinite(value) ? value : undefined;
+}
+
+function validId(value: number | undefined): value is number {
+  return value !== undefined && Number.isInteger(value) && value > 0;
+}
+
+async function removePublicationPdfQuietly(url: string | null | undefined) {
+  try {
+    await removePublicationPdf(url);
+  } catch (error) {
+    console.error('Failed to remove superseded article PDF:', error);
+  }
 }
 
 export async function GET(request: Request) {
@@ -84,7 +96,7 @@ export async function POST(request: Request) {
       const datePublished = getString(formData, 'date_published');
       const file = formData.get('file') as File | null;
 
-      if (!issueId || !title || !authors || !abstract || !keywords || !pages || !datePublished || !file) {
+      if (!validId(issueId) || !title || !authors || !abstract || !keywords || !pages || !datePublished || !file) {
         return NextResponse.json({ error: 'Missing required fields for creating an article' }, { status: 400 });
       }
 
@@ -95,13 +107,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: err.message || 'File upload failed' }, { status: 400 });
       }
 
-      const result = await db`
-        INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published)
-        VALUES (${issueId}, ${title}, ${authors}, ${abstract}, ${keywords}, ${doi}, ${pages}, ${pdfUrl}, ${type}, ${datePublished})
-        RETURNING *
-      `;
+      try {
+        const result = await db`
+          INSERT INTO articles (issue_id, title, authors, abstract, keywords, doi, pages, pdf_url, type, date_published)
+          VALUES (${issueId}, ${title}, ${authors}, ${abstract}, ${keywords}, ${doi}, ${pages}, ${pdfUrl}, ${type}, ${datePublished})
+          RETURNING *
+        `;
 
-      return NextResponse.json({ success: true, article: result.rows[0] });
+        return NextResponse.json({ success: true, article: result.rows[0] });
+      } catch (error) {
+        await removePublicationPdfQuietly(pdfUrl);
+        throw error;
+      }
     }
 
     if (action === 'update') {
@@ -117,7 +134,7 @@ export async function POST(request: Request) {
       const datePublished = getString(formData, 'date_published');
       const file = formData.get('file') as File | null;
 
-      if (!id || !issueId || !title || !authors || !abstract || !keywords || !pages || !datePublished) {
+      if (!validId(id) || !validId(issueId) || !title || !authors || !abstract || !keywords || !pages || !datePublished) {
         return NextResponse.json({ error: 'Missing required fields for updating the article' }, { status: 400 });
       }
 
@@ -130,42 +147,43 @@ export async function POST(request: Request) {
         }
       }
 
+      const currentResult = await db`SELECT pdf_url FROM articles WHERE id = ${id}`;
+      if (currentResult.rows.length === 0) {
+        await removePublicationPdfQuietly(pdfUrl);
+        return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+      }
+
       let result;
-      if (pdfUrl) {
-        result = await db`
-          UPDATE articles 
-          SET issue_id = ${issueId},
-              title = ${title},
-              authors = ${authors},
-              abstract = ${abstract},
-              keywords = ${keywords},
-              doi = ${doi},
-              pages = ${pages},
-              pdf_url = ${pdfUrl},
-              type = ${type},
-              date_published = ${datePublished}
-          WHERE id = ${id}
-          RETURNING *
-        `;
-      } else {
-        result = await db`
-          UPDATE articles 
-          SET issue_id = ${issueId},
-              title = ${title},
-              authors = ${authors},
-              abstract = ${abstract},
-              keywords = ${keywords},
-              doi = ${doi},
-              pages = ${pages},
-              type = ${type},
-              date_published = ${datePublished}
-          WHERE id = ${id}
-          RETURNING *
-        `;
+      try {
+        result = pdfUrl
+          ? await db`
+              UPDATE articles
+              SET issue_id = ${issueId}, title = ${title}, authors = ${authors}, abstract = ${abstract},
+                  keywords = ${keywords}, doi = ${doi}, pages = ${pages}, pdf_url = ${pdfUrl},
+                  type = ${type}, date_published = ${datePublished}
+              WHERE id = ${id}
+              RETURNING *
+            `
+          : await db`
+              UPDATE articles
+              SET issue_id = ${issueId}, title = ${title}, authors = ${authors}, abstract = ${abstract},
+                  keywords = ${keywords}, doi = ${doi}, pages = ${pages}, type = ${type},
+                  date_published = ${datePublished}
+              WHERE id = ${id}
+              RETURNING *
+            `;
+      } catch (error) {
+        await removePublicationPdfQuietly(pdfUrl);
+        throw error;
       }
 
       if (result.rows.length === 0) {
+        await removePublicationPdfQuietly(pdfUrl);
         return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+      }
+
+      if (pdfUrl) {
+        await removePublicationPdfQuietly(currentResult.rows[0].pdf_url);
       }
 
       return NextResponse.json({ success: true, article: result.rows[0] });
@@ -173,19 +191,21 @@ export async function POST(request: Request) {
 
     if (action === 'delete') {
       const id = getNumber(formData, 'id');
-      if (!id) {
+      if (!validId(id)) {
         return NextResponse.json({ error: 'Article ID is required' }, { status: 400 });
       }
 
       const result = await db`
         DELETE FROM articles 
         WHERE id = ${id}
-        RETURNING *
+        RETURNING pdf_url
       `;
 
       if (result.rows.length === 0) {
         return NextResponse.json({ error: 'Article not found' }, { status: 404 });
       }
+
+      await removePublicationPdfQuietly(result.rows[0].pdf_url);
 
       return NextResponse.json({ success: true });
     }

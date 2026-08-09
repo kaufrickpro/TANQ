@@ -22,6 +22,8 @@ export async function resetTestDatabase() {
       submission_events,
       submission_documents,
       articles,
+      issues,
+      journal_volumes,
       withdrawal_requests,
       reviews,
       submissions,

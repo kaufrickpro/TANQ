@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import db from '@/lib/db';
 import crypto from 'crypto';
 
@@ -87,6 +88,8 @@ export async function getSessionUser(): Promise<AuthUser | null> {
       is_verified: Boolean(session.is_verified),
     };
   } catch (e) {
+    // Do not swallow framework-controlled dynamic rendering errors from cookies().
+    unstable_rethrow(e);
     console.error('Error fetching session user:', e);
     return null;
   }

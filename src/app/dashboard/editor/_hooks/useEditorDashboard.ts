@@ -57,21 +57,26 @@ export function useEditorDashboard() {
 
   // New issue form state
   const [showNewIssue, setShowNewIssue] = useState(false);
+  const [editingIssueId, setEditingIssueId] = useState<number | null>(null);
   const [vol, setVol] = useState(1);
   const [num, setNum] = useState(2);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState('June');
   const [issueTitle, setIssueTitle] = useState('Volume 1 Issue 2 – June 2026');
   const [issuePdfFile, setIssuePdfFile] = useState<File | null>(null);
+  const [issuePublished, setIssuePublished] = useState(true);
+  const [removeIssuePdf, setRemoveIssuePdf] = useState(false);
   const [creatingIssue, setCreatingIssue] = useState(false);
 
   // Volume and issue PDF management state
   const [showVolumePdf, setShowVolumePdf] = useState(false);
+  const [editingVolumeId, setEditingVolumeId] = useState<number | null>(null);
   const [volumePdfNumber, setVolumePdfNumber] = useState(1);
   const [volumePdfYear, setVolumePdfYear] = useState(new Date().getFullYear());
   const [volumePdfTitle, setVolumePdfTitle] = useState('African Nexus Quarterly, Volume 1');
   const [volumePdfSubtitle, setVolumePdfSubtitle] = useState('Complete journal volume');
   const [volumePdfFile, setVolumePdfFile] = useState<File | null>(null);
+  const [removeVolumePdf, setRemoveVolumePdf] = useState(false);
   const [uploadingVolumePdf, setUploadingVolumePdf] = useState(false);
   const [issuePdfIssueId, setIssuePdfIssueId] = useState<number>(0);
   const [existingIssuePdfFile, setExistingIssuePdfFile] = useState<File | null>(null);
@@ -466,7 +471,38 @@ export function useEditorDashboard() {
     }
   };
 
-  const handleCreateIssue = async (e: React.FormEvent) => {
+  const resetIssueForm = () => {
+    const latestIssue = issues[0];
+    setEditingIssueId(null);
+    setVol(latestIssue?.volume || 1);
+    setNum(latestIssue ? latestIssue.number + 1 : 1);
+    setYear(new Date().getFullYear());
+    setMonth('');
+    setIssueTitle('');
+    setIssuePdfFile(null);
+    setRemoveIssuePdf(false);
+    setIssuePublished(true);
+    const issueFileInput = document.getElementById('new-issue-pdf') as HTMLInputElement | null;
+    if (issueFileInput) issueFileInput.value = '';
+  };
+
+  const startEditingIssue = (issue: Issue) => {
+    setEditingIssueId(issue.id);
+    setVol(issue.volume);
+    setNum(issue.number);
+    setYear(issue.year);
+    setMonth(issue.month);
+    setIssueTitle(issue.title);
+    setIssuePublished(Boolean(issue.is_published));
+    setIssuePdfFile(null);
+    setRemoveIssuePdf(false);
+    setShowVolumePdf(false);
+    setShowNewIssue(true);
+    setSuccess('');
+    setError('');
+  };
+
+  const handleSaveIssue = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreatingIssue(true);
     setError('');
@@ -474,12 +510,15 @@ export function useEditorDashboard() {
 
     try {
       const formData = new FormData();
-      formData.append('action', 'create_issue');
+      formData.append('action', editingIssueId ? 'update_issue' : 'create_issue');
+      if (editingIssueId) formData.append('id', String(editingIssueId));
       formData.append('volume', String(vol));
       formData.append('number', String(num));
       formData.append('year', String(year));
       formData.append('month', month);
       formData.append('title', issueTitle);
+      formData.append('is_published', String(issuePublished));
+      formData.append('remove_pdf', String(removeIssuePdf));
       if (issuePdfFile) {
         formData.append('issue_pdf', issuePdfFile);
       }
@@ -494,44 +533,85 @@ export function useEditorDashboard() {
         throw new Error(responseData.error || 'Failed to create issue');
       }
 
-      const issueData = responseData;
-      await fetch('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'publish_issue',
-          issue_id: issueData.id
-        })
-      });
-
-      setSuccess(`Issue "${issueTitle}" created and published successfully! You can now schedule articles to it.`);
+      setSuccess(editingIssueId
+        ? `Issue "${issueTitle}" updated successfully.`
+        : `Issue "${issueTitle}" created successfully.`);
       setShowNewIssue(false);
-      setIssuePdfFile(null);
-      const issueFileInput = document.getElementById('new-issue-pdf') as HTMLInputElement;
-      if (issueFileInput) issueFileInput.value = '';
-      fetchData();
+      resetIssueForm();
+      await fetchData();
     } catch (e: any) {
-      setError(e.message || 'Error creating issue');
+      setError(e.message || 'Error saving issue');
     } finally {
       setCreatingIssue(false);
     }
   };
 
-  const handleUploadVolumePdf = async (e: React.FormEvent) => {
+  const handleDeleteIssue = async (issue: Issue) => {
+    if (!confirm(`Delete issue "${issue.title}"? This is permanent. Issues containing articles cannot be deleted.`)) return false;
+    setError('');
+    setSuccess('');
+    try {
+      const formData = new FormData();
+      formData.append('action', 'delete_issue');
+      formData.append('id', String(issue.id));
+      const res = await fetch('/api/publish', { method: 'POST', body: formData });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to delete issue');
+      setSuccess(`Issue "${issue.title}" deleted.`);
+      if (editingIssueId === issue.id) {
+        setShowNewIssue(false);
+        resetIssueForm();
+      }
+      await fetchData();
+      return true;
+    } catch (e: any) {
+      setError(e.message || 'Error deleting issue');
+      return false;
+    }
+  };
+
+  const resetVolumeForm = () => {
+    setEditingVolumeId(null);
+    setVolumePdfNumber(1);
+    setVolumePdfYear(new Date().getFullYear());
+    setVolumePdfTitle('');
+    setVolumePdfSubtitle('');
+    setVolumePdfFile(null);
+    setRemoveVolumePdf(false);
+    const volumeFileInput = document.getElementById('volume-pdf-file') as HTMLInputElement | null;
+    if (volumeFileInput) volumeFileInput.value = '';
+  };
+
+  const startEditingVolume = (volume: JournalVolume) => {
+    setEditingVolumeId(volume.id);
+    setVolumePdfNumber(volume.volume);
+    setVolumePdfYear(volume.year);
+    setVolumePdfTitle(volume.title);
+    setVolumePdfSubtitle(volume.subtitle || '');
+    setVolumePdfFile(null);
+    setRemoveVolumePdf(false);
+    setShowVolumePdf(true);
+    setShowNewIssue(false);
+    setSuccess('');
+    setError('');
+  };
+
+  const handleSaveVolume = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!volumePdfFile) return;
     setUploadingVolumePdf(true);
     setError('');
     setSuccess('');
 
     try {
       const formData = new FormData();
-      formData.append('action', 'upsert_volume_pdf');
+      formData.append('action', editingVolumeId ? 'update_volume' : 'create_volume');
+      if (editingVolumeId) formData.append('id', String(editingVolumeId));
       formData.append('volume', String(volumePdfNumber));
       formData.append('year', String(volumePdfYear));
       formData.append('title', volumePdfTitle);
       formData.append('subtitle', volumePdfSubtitle);
-      formData.append('file', volumePdfFile);
+      formData.append('remove_pdf', String(removeVolumePdf));
+      if (volumePdfFile) formData.append('file', volumePdfFile);
 
       const res = await fetch('/api/publish', {
         method: 'POST',
@@ -543,15 +623,35 @@ export function useEditorDashboard() {
         throw new Error(errData.error || 'Failed to upload volume PDF');
       }
 
-      setSuccess(`Volume ${volumePdfNumber} PDF uploaded successfully.`);
-      setVolumePdfFile(null);
-      const volumeFileInput = document.getElementById('volume-pdf-file') as HTMLInputElement;
-      if (volumeFileInput) volumeFileInput.value = '';
-      fetchData();
+      setSuccess(editingVolumeId
+        ? `Volume ${volumePdfNumber} updated successfully.`
+        : `Volume ${volumePdfNumber} created successfully.`);
+      resetVolumeForm();
+      await fetchData();
     } catch (e: any) {
-      setError(e.message || 'Error uploading volume PDF');
+      setError(e.message || 'Error saving volume');
     } finally {
       setUploadingVolumePdf(false);
+    }
+  };
+
+  const handleDeleteVolume = async (volume: JournalVolume) => {
+    if (!confirm(`Delete "${volume.title}"? Its volume PDF will be removed, but its issues and articles will remain available.`)) return;
+    setError('');
+    setSuccess('');
+    try {
+      const formData = new FormData();
+      formData.append('action', 'delete_volume');
+      formData.append('id', String(volume.id));
+      const res = await fetch('/api/publish', { method: 'POST', body: formData });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to delete volume');
+      const retained = Number(data.retainedIssueCount || 0);
+      setSuccess(`Volume "${volume.title}" deleted.${retained > 0 ? ` ${retained} issue${retained === 1 ? '' : 's'} retained.` : ''}`);
+      if (editingVolumeId === volume.id) resetVolumeForm();
+      await fetchData();
+    } catch (e: any) {
+      setError(e.message || 'Error deleting volume');
     }
   };
 
@@ -705,6 +805,7 @@ export function useEditorDashboard() {
     loadingInvites,
     showNewIssue,
     setShowNewIssue,
+    editingIssueId,
     vol,
     setVol,
     num,
@@ -717,9 +818,14 @@ export function useEditorDashboard() {
     setIssueTitle,
     issuePdfFile,
     setIssuePdfFile,
+    issuePublished,
+    setIssuePublished,
+    removeIssuePdf,
+    setRemoveIssuePdf,
     creatingIssue,
     showVolumePdf,
     setShowVolumePdf,
+    editingVolumeId,
     volumePdfNumber,
     setVolumePdfNumber,
     volumePdfYear,
@@ -730,6 +836,8 @@ export function useEditorDashboard() {
     setVolumePdfSubtitle,
     volumePdfFile,
     setVolumePdfFile,
+    removeVolumePdf,
+    setRemoveVolumePdf,
     uploadingVolumePdf,
     issuePdfIssueId,
     setIssuePdfIssueId,
@@ -754,8 +862,14 @@ export function useEditorDashboard() {
     handleCopyLink,
     handleAssignReviewer,
     handlePublishArticle,
-    handleCreateIssue,
-    handleUploadVolumePdf,
+    handleSaveIssue,
+    startEditingIssue,
+    resetIssueForm,
+    handleDeleteIssue,
+    handleSaveVolume,
+    startEditingVolume,
+    resetVolumeForm,
+    handleDeleteVolume,
     handleUploadExistingIssuePdf,
     getStatusColor,
     newlyCreatedInviteUrl,

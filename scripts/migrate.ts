@@ -981,6 +981,14 @@ async function migrate() {
   await sql`CREATE INDEX IF NOT EXISTS idx_discussion_messages_sender ON discussion_messages(sender_user_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_discussion_messages_attachment ON discussion_messages(attachment_version_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_integrity_checks_version ON integrity_checks(document_version_id, checked_at DESC);`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_volume_number_year_unique
+      ON issues(volume, number, year);
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_issues_archive_order
+      ON issues(year DESC, volume DESC, number DESC);
+  `;
   await sql`CREATE INDEX IF NOT EXISTS idx_articles_issue ON articles(issue_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_articles_source_version ON articles(source_document_version_id);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_submissions_current_round ON submissions(current_round_id);`;

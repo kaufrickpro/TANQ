@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, RefreshCw, AlertCircle, BookOpen, FileText } from 'lucide-react';
+import { CheckCircle, RefreshCw, AlertCircle, BookOpen, Edit, FileText, Trash2 } from 'lucide-react';
 
 // Import subcomponents & custom hook
 import VolumePdfManager from './_components/VolumePdfManager';
@@ -107,6 +107,7 @@ export default function EditorDashboard() {
     loadingInvites,
     showNewIssue,
     setShowNewIssue,
+    editingIssueId,
     vol,
     setVol,
     num,
@@ -119,9 +120,14 @@ export default function EditorDashboard() {
     setIssueTitle,
     issuePdfFile,
     setIssuePdfFile,
+    issuePublished,
+    setIssuePublished,
+    removeIssuePdf,
+    setRemoveIssuePdf,
     creatingIssue,
     showVolumePdf,
     setShowVolumePdf,
+    editingVolumeId,
     volumePdfNumber,
     setVolumePdfNumber,
     volumePdfYear,
@@ -132,6 +138,8 @@ export default function EditorDashboard() {
     setVolumePdfSubtitle,
     volumePdfFile,
     setVolumePdfFile,
+    removeVolumePdf,
+    setRemoveVolumePdf,
     uploadingVolumePdf,
     issuePdfIssueId,
     setIssuePdfIssueId,
@@ -157,8 +165,14 @@ export default function EditorDashboard() {
     handleCopyLink,
     handleAssignReviewer,
     handlePublishArticle,
-    handleCreateIssue,
-    handleUploadVolumePdf,
+    handleSaveIssue,
+    startEditingIssue,
+    resetIssueForm,
+    handleDeleteIssue,
+    handleSaveVolume,
+    startEditingVolume,
+    resetVolumeForm,
+    handleDeleteVolume,
     newlyCreatedInviteUrl,
     accounts,
     loadingAccounts,
@@ -180,6 +194,7 @@ export default function EditorDashboard() {
   if (!session) return null;
 
   const isAccountsView = editorView === 'accounts';
+  const editingIssue = issues.find((issue) => issue.id === editingIssueId);
   const queueItems: SubmissionQueueItem[] = submissions.map((submission) => {
     const stage = submission.current_stage || submission.status;
     const archived = ['published', 'rejected', 'withdrawn'].includes(stage);
@@ -324,19 +339,30 @@ export default function EditorDashboard() {
             <ArticleManager
               issues={issues}
               selectedIssueId={selectedIssueIdForArticles}
+              canDeleteIssue={session.role === 'admin'}
               onClose={() => setSelectedIssueIdForArticles(null)}
+              onEditIssue={(issue) => {
+                setSelectedIssueIdForArticles(null);
+                startEditingIssue(issue);
+              }}
+              onDeleteIssue={async (issue) => {
+                const deleted = await handleDeleteIssue(issue);
+                if (deleted) setSelectedIssueIdForArticles(null);
+                return deleted;
+              }}
               onRefreshIssues={fetchData}
             />
           ) : (
             <div className="space-y-6">
-              <div className="flex justify-between items-center bg-bg-card border border-border-custom p-4 rounded-sm">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-bg-card border border-border-custom p-4 rounded-sm">
                 <div className="min-w-0">
                   <h3 className="font-serif font-bold text-sm text-text-heading uppercase tracking-wide">Issues & Volumes</h3>
                   <p className="text-[10px] text-text-muted mt-0.5 font-serif truncate">Configure journal issues, publish new volumes, and attach full PDFs.</p>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     onClick={() => {
+                      resetIssueForm();
                       setShowNewIssue(true);
                       setShowVolumePdf(false);
                     }}
@@ -377,7 +403,9 @@ export default function EditorDashboard() {
               </div>
 
               {showNewIssue && (
-                <NewIssueForm
+                  <NewIssueForm
+                  editingIssueId={editingIssueId}
+                  existingPdfUrl={editingIssue?.issue_pdf_url}
                   vol={vol}
                   setVol={setVol}
                   num={num}
@@ -390,16 +418,23 @@ export default function EditorDashboard() {
                   setIssueTitle={setIssueTitle}
                   issuePdfFile={issuePdfFile}
                   setIssuePdfFile={setIssuePdfFile}
+                  issuePublished={issuePublished}
+                  setIssuePublished={setIssuePublished}
+                  removeIssuePdf={removeIssuePdf}
+                  setRemoveIssuePdf={setRemoveIssuePdf}
                   creatingIssue={creatingIssue}
-                  handleCreateIssue={handleCreateIssue}
+                  handleSaveIssue={handleSaveIssue}
+                  resetIssueForm={resetIssueForm}
                   setShowNewIssue={setShowNewIssue}
                 />
               )}
 
               {showVolumePdf && (
                 <VolumePdfManager
+                  canDelete={session.role === 'admin'}
                   volumes={volumes}
                   issues={issues}
+                  editingVolumeId={editingVolumeId}
                   volumePdfNumber={volumePdfNumber}
                   setVolumePdfNumber={setVolumePdfNumber}
                   volumePdfYear={volumePdfYear}
@@ -410,8 +445,13 @@ export default function EditorDashboard() {
                   setVolumePdfSubtitle={setVolumePdfSubtitle}
                   volumePdfFile={volumePdfFile}
                   setVolumePdfFile={setVolumePdfFile}
+                  removeVolumePdf={removeVolumePdf}
+                  setRemoveVolumePdf={setRemoveVolumePdf}
                   uploadingVolumePdf={uploadingVolumePdf}
-                  handleUploadVolumePdf={handleUploadVolumePdf}
+                  handleSaveVolume={handleSaveVolume}
+                  startEditingVolume={startEditingVolume}
+                  resetVolumeForm={resetVolumeForm}
+                  handleDeleteVolume={handleDeleteVolume}
                   issuePdfIssueId={issuePdfIssueId}
                   setIssuePdfIssueId={setIssuePdfIssueId}
                   existingIssuePdfFile={existingIssuePdfFile}
@@ -440,11 +480,21 @@ export default function EditorDashboard() {
                                 <p className="font-bold text-text-heading truncate">Volume {v.volume} ({v.year})</p>
                                 <p className="text-[10px] text-text-muted truncate mt-0.5">{v.title}</p>
                               </div>
-                              {v.pdf_url ? (
-                                <a href={publicationPdfHref('volume', v.id)} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
-                              ) : (
-                                <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
-                              )}
+                              <div className="flex items-center gap-1.5 shrink-0 font-sans">
+                                {v.pdf_url ? (
+                                  <a href={publicationPdfHref('volume', v.id)} download className="mr-1 font-bold text-[9px] uppercase tracking-wider text-olive hover:underline">PDF</a>
+                                ) : (
+                                  <span className="mr-1 font-bold text-[9px] uppercase tracking-wider text-text-muted/50">No PDF</span>
+                                )}
+                                <button type="button" onClick={() => startEditingVolume(v)} className="p-1.5 rounded-sm border border-border-custom hover:bg-white text-olive transition-colors cursor-pointer" aria-label={`Edit ${v.title}`} title="Edit volume">
+                                  <Edit size={11} />
+                                </button>
+                                {session.role === 'admin' && (
+                                  <button type="button" onClick={() => void handleDeleteVolume(v)} className="p-1.5 rounded-sm border border-border-custom hover:bg-red-50 text-text-muted hover:text-red-600 transition-colors cursor-pointer" aria-label={`Delete ${v.title}`} title="Delete volume">
+                                    <Trash2 size={11} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -471,20 +521,33 @@ export default function EditorDashboard() {
                           {issues.map((iss) => (
                             <div key={iss.id} className="border border-border-light p-2 bg-sand/5 rounded-sm flex items-center justify-between text-xs font-serif">
                               <div className="min-w-0 pr-2">
-                                <p className="font-bold text-text-heading truncate">{iss.title}</p>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <p className="font-bold text-text-heading truncate">{iss.title}</p>
+                                  <span className={`shrink-0 font-sans text-[7px] font-bold uppercase tracking-wider px-1 py-0.5 border rounded-sm ${iss.is_published ? 'border-olive/40 text-olive bg-sand/20' : 'border-border-custom text-text-muted bg-white'}`}>
+                                    {iss.is_published ? 'Published' : 'Draft'}
+                                  </span>
+                                </div>
                                 <p className="text-[10px] text-text-muted mt-0.5">Vol. {iss.volume}, No. {iss.number}</p>
                               </div>
-                              <div className="flex items-center gap-3 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0 font-sans">
                                 <button
                                   onClick={() => setSelectedIssueIdForArticles(iss.id)}
-                                  className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline cursor-pointer"
+                                  className="mr-1 font-bold text-[9px] uppercase tracking-wider text-olive hover:underline cursor-pointer"
                                 >
                                   Articles
                                 </button>
                                 {iss.issue_pdf_url ? (
-                                  <a href={publicationPdfHref('issue', iss.id)} download className="font-sans font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
+                                  <a href={publicationPdfHref('issue', iss.id)} download className="mr-1 font-bold text-[9px] uppercase tracking-wider text-olive hover:underline shrink-0">PDF</a>
                                 ) : (
-                                  <span className="font-sans font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
+                                  <span className="mr-1 font-bold text-[9px] uppercase tracking-wider text-text-muted/50 shrink-0">No PDF</span>
+                                )}
+                                <button type="button" onClick={() => startEditingIssue(iss)} className="p-1.5 rounded-sm border border-border-custom hover:bg-white text-olive transition-colors cursor-pointer" aria-label={`Edit ${iss.title}`} title="Edit issue">
+                                  <Edit size={11} />
+                                </button>
+                                {session.role === 'admin' && (
+                                  <button type="button" onClick={() => void handleDeleteIssue(iss)} className="p-1.5 rounded-sm border border-border-custom hover:bg-red-50 text-text-muted hover:text-red-600 transition-colors cursor-pointer" aria-label={`Delete ${iss.title}`} title="Delete issue">
+                                    <Trash2 size={11} />
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -493,7 +556,10 @@ export default function EditorDashboard() {
                       )}
                     </div>
                     <button
-                      onClick={() => setShowNewIssue(true)}
+                      onClick={() => {
+                        resetIssueForm();
+                        setShowNewIssue(true);
+                      }}
                       className="w-full bg-olive text-white hover:bg-link-hover font-sans font-bold text-[10px] py-2 rounded-sm uppercase tracking-wider transition-colors cursor-pointer mt-4"
                     >
                       Create New Issue

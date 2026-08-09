@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { get, put } from '@/lib/blob';
+import { del, get, put } from '@/lib/blob';
 import type { PublicationPdfKind } from '@/lib/publicationPdfPaths';
 
 const PDF_FOLDERS: Record<PublicationPdfKind, string> = {
@@ -8,6 +8,8 @@ const PDF_FOLDERS: Record<PublicationPdfKind, string> = {
   issue: 'issues',
   volume: 'volumes',
 };
+
+export const MAX_PUBLICATION_PDF_BYTES = 100 * 1024 * 1024;
 
 function isPdf(file: File): boolean {
   return file.name.toLowerCase().endsWith('.pdf') &&
@@ -17,6 +19,12 @@ function isPdf(file: File): boolean {
 export async function savePublicationPdf(file: File, kind: PublicationPdfKind): Promise<string> {
   if (!isPdf(file)) {
     throw new Error('Only PDF files are supported');
+  }
+  if (file.size <= 0) {
+    throw new Error('The PDF file is empty');
+  }
+  if (file.size > MAX_PUBLICATION_PDF_BYTES) {
+    throw new Error('Publication PDFs must be 100 MB or smaller');
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -56,6 +64,16 @@ function isPrivateBlobUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Removes publication files only when they belong to the private Blob store.
+ * Legacy public paths and unknown URLs are deliberately left untouched.
+ */
+export async function removePublicationPdf(value: string | null | undefined): Promise<boolean> {
+  if (!value || !isPrivateBlobUrl(value)) return false;
+  await del(value);
+  return true;
 }
 
 export async function publicationPdfResponse(

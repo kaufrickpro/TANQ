@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  FileText, 
   Plus, 
   Edit, 
   Trash2, 
@@ -11,7 +10,6 @@ import {
   AlertCircle, 
   CheckCircle, 
   Calendar, 
-  User, 
   Tag, 
   FileUp,
   BookOpen
@@ -37,14 +35,20 @@ interface Article {
 interface ArticleManagerProps {
   issues: Issue[];
   selectedIssueId: number;
+  canDeleteIssue: boolean;
   onClose: () => void;
+  onEditIssue: (issue: Issue) => void;
+  onDeleteIssue: (issue: Issue) => Promise<boolean>;
   onRefreshIssues: () => Promise<void>;
 }
 
 export default function ArticleManager({
   issues,
   selectedIssueId,
+  canDeleteIssue,
   onClose,
+  onEditIssue,
+  onDeleteIssue,
   onRefreshIssues
 }: ArticleManagerProps) {
   const [activeIssueId, setActiveIssueId] = useState<number>(selectedIssueId);
@@ -360,6 +364,31 @@ export default function ArticleManager({
                   <span className="text-text-muted italic">No PDF attached to this issue.</span>
                 )}
               </div>
+              <div>
+                <span className="font-sans font-bold text-[8px] uppercase tracking-wider text-text-muted block">Publication Status</span>
+                <span className={activeIssue.is_published ? 'font-bold text-olive' : 'font-bold text-text-muted'}>
+                  {activeIssue.is_published ? 'Published' : 'Draft'}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2 border-t border-border-light pt-3 font-sans">
+              <button
+                type="button"
+                onClick={() => onEditIssue(activeIssue)}
+                className="inline-flex items-center justify-center gap-1.5 border border-border-custom bg-white px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-olive hover:bg-sand/10 transition-colors cursor-pointer"
+              >
+                <Edit size={11} /> Edit Issue Details
+              </button>
+              {canDeleteIssue && (
+                <button
+                  type="button"
+                  onClick={() => void onDeleteIssue(activeIssue)}
+                  className="inline-flex items-center justify-center gap-1.5 border border-border-custom bg-white px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-text-muted hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
+                >
+                  <Trash2 size={11} /> Delete Issue
+                </button>
+              )}
             </div>
 
             {/* Change Issue PDF Form */}
@@ -603,16 +632,20 @@ export default function ArticleManager({
                         {/* Edit & Delete Action Buttons */}
                         <div className="flex items-center gap-2 shrink-0 font-sans">
                           <button
+                            type="button"
                             onClick={() => openEditForm(article)}
                             className="p-1.5 rounded-sm border border-border-custom hover:bg-sand/15 text-olive transition-colors cursor-pointer"
                             title="Edit metadata / PDF"
+                            aria-label={`Edit ${article.title}`}
                           >
                             <Edit size={12} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteArticle(article.id, article.title)}
-                            className="p-1.5 rounded-sm border border-border-custom hover:bg-sand/15 text-olive transition-colors cursor-pointer"
+                            className="p-1.5 rounded-sm border border-border-custom hover:bg-red-50 text-text-muted hover:text-red-600 transition-colors cursor-pointer"
                             title="Delete article"
+                            aria-label={`Delete ${article.title}`}
                           >
                             <Trash2 size={12} />
                           </button>

@@ -1,20 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getMock, putMock } = vi.hoisted(() => ({
+const { delMock, getMock, putMock } = vi.hoisted(() => ({
+  delMock: vi.fn(),
   getMock: vi.fn(),
   putMock: vi.fn(),
 }));
 
 vi.mock('@/lib/blob', () => ({
+  del: delMock,
   get: getMock,
   put: putMock,
 }));
 
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
-import { publicationPdfResponse, savePublicationPdf } from '@/lib/publicationPdfs';
+import { publicationPdfResponse, removePublicationPdf, savePublicationPdf } from '@/lib/publicationPdfs';
 
 describe('publication PDFs', () => {
   beforeEach(() => {
+    delMock.mockReset();
     getMock.mockReset();
     putMock.mockReset();
   });
@@ -90,5 +93,18 @@ describe('publication PDFs', () => {
 
   it('builds stable same-origin download paths', () => {
     expect(publicationPdfHref('issue', 12)).toBe('/api/publications/issue/12/pdf');
+  });
+
+  it('rejects empty publication files before uploading', async () => {
+    const file = new File([], 'empty.pdf', { type: 'application/pdf' });
+    await expect(savePublicationPdf(file, 'issue')).rejects.toThrow('empty');
+    expect(putMock).not.toHaveBeenCalled();
+  });
+
+  it('only removes PDFs stored in the private Blob store', async () => {
+    delMock.mockResolvedValue(undefined);
+    await expect(removePublicationPdf('/volumes/legacy.pdf')).resolves.toBe(false);
+    await expect(removePublicationPdf('https://store.private.blob.vercel-storage.com/volumes/current.pdf')).resolves.toBe(true);
+    expect(delMock).toHaveBeenCalledTimes(1);
   });
 });
