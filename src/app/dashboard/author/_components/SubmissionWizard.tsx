@@ -101,7 +101,7 @@ const FILE_SLOTS = [
   { key: 'fullText' as const, kind: 'manuscript' as const, label: 'Full Text (Blinded Manuscript)', required: true, accept: '.pdf,.doc,.docx' },
   { key: 'supplementary' as const, kind: 'supplementary' as const, label: 'Supplementary Files', required: true, accept: '.pdf,.doc,.docx,.zip' },
   { key: 'titlePage' as const, kind: 'title_page' as const, label: 'Title Page (with author info)', required: true, accept: '.pdf,.doc,.docx' },
-  { key: 'copyrightForm' as const, kind: 'copyright_form' as const, label: 'Copyright Transfer Form', required: true, accept: '.pdf,.doc,.docx' },
+  { key: 'copyrightForm' as const, kind: 'copyright_form' as const, label: 'Copyright and Author License Agreement', required: true, accept: '.pdf,.doc,.docx' },
   { key: 'similarityReport' as const, kind: 'similarity_report' as const, label: 'Similarity / Plagiarism Report', required: true, accept: '.pdf' },
   { key: 'ethicsApproval' as const, kind: 'ethics_approval' as const, label: 'Ethics Committee Approval', required: true, accept: '.pdf,.doc,.docx' },
 ];

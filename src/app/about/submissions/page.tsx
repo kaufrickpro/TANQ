@@ -24,14 +24,14 @@ const downloadableDocuments = [
     description: 'Structured response for revised submissions',
   },
   {
-    href: '/templates/T-ANQ Copyright Transfer & Declaration.docx',
-    title: 'Copyright Transfer & Declaration',
-    description: 'Copyright transfer and author declaration form',
+    href: '/templates/T-ANQ Author Declaration Form.docx',
+    title: 'Author Declaration Form',
+    description: 'Originality, authorship, and ethics declaration; provide only if requested by the editorial office',
   },
   {
-    href: '/templates/T-ANQ Copyright Transfer Agreement.docx',
-    title: 'Copyright Transfer Agreement',
-    description: 'Copyright agreement for accepted manuscripts',
+    href: '/templates/T-ANQ Copyright and Author License Agreement.docx',
+    title: 'Copyright and Author License Agreement',
+    description: 'Non-exclusive publishing license; authors retain copyright',
   },
 ];
 

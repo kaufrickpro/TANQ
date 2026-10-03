@@ -8,7 +8,7 @@ export default function AuthorGuidelines() {
           Author Guidelines
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          These guidelines are designed to assist authors in preparing manuscripts that meet the standards of a Scopus-indexed and TR Dizin-compliant academic publication. All submissions must adhere strictly to the American Psychological Association (APA) 7th Edition style.
+          These guidelines help authors prepare manuscripts for African Nexus Quarterly. All submissions must adhere to the American Psychological Association (APA) 7th Edition style.
         </p>
       </div>
 

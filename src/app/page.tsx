@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import db from '@/lib/db';
 import JournalCover from '@/components/journal/JournalCover';
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
@@ -40,14 +39,6 @@ export default async function Home() {
   // Group by Editorial and Research Articles
   const editorials = articles.filter(a => a.type === 'Editorial');
   const researchArticles = articles.filter(a => a.type === 'Research Article');
-
-  const indexingPartners = [
-    { name: 'Google Scholar', status: 'Inclusion Pending' },
-    { name: 'Persistent DOIs (via Zenodo / CERN Repository)', status: '' },
-    { name: 'TR Dizin', status: 'Evaluating' },
-    { name: 'Scopus', status: 'Pre-evaluating' },
-    { name: 'DOAJ', status: 'Diamond OA' }
-  ];
 
   return (
     <div className="flex-1 flex flex-col bg-bg-page font-serif">
@@ -194,7 +185,7 @@ export default async function Home() {
                 <li>Double-blind peer-review</li>
                 <li>Rigorous evaluation (2-3 reviewers)</li>
                 <li>Fast-track publication</li>
-                <li>Compliant with TR Dizin & Scopus</li>
+                <li>Transparent publication policies</li>
               </ul>
               <Link 
                 href="/about/submissions" 
@@ -204,29 +195,17 @@ export default async function Home() {
               </Link>
             </div>
 
-            {/* Indexing status box */}
+            {/* Verified preservation and identifier services */}
             <div className="bg-bg-card border border-border-custom p-6 shadow-sm">
               <h3 className="font-sans font-bold text-xs uppercase tracking-[0.15em] text-text-heading border-b border-border-light pb-3 mb-4">
-                Indexing & Abstracting
+                Archiving & Discoverability
               </h3>
               <p className="text-xs text-text-muted leading-relaxed font-serif mb-4">
-                ANQ is actively aligning with global standards to seek indexing in core reference databases post-launch.
+                Published articles are preserved in Zenodo, the CERN repository, and have persistent DOIs that link to their records.
               </p>
               <div className="space-y-3 pt-2">
-                {indexingPartners.map(idx => (
-                  <div key={idx.name} className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-text-primary">{idx.name}</span>
-                    {idx.status && <span className={`text-[9px] px-2 py-0.5 rounded-sm font-sans font-bold uppercase tracking-wider border ${
-                      idx.status.includes('Active') 
-                        ? 'bg-olive text-white border-olive' 
-                        : idx.status.includes('Diamond') 
-                          ? 'bg-sand text-olive border-border-custom'
-                          : 'bg-white text-text-muted border-border-light'
-                    }`}>
-                      {idx.status}
-                    </span>}
-                  </div>
-                ))}
+                <div className="text-xs font-bold text-text-primary">Archived in Zenodo / CERN Repository</div>
+                <div className="text-xs font-bold text-text-primary">Persistent DOIs via Zenodo</div>
               </div>
             </div>
 

@@ -22,7 +22,7 @@ export const DOCUMENT_KIND_DEFAULTS: Record<DocumentKind, { label: string; visib
   manuscript: { label: 'Blinded Manuscript', visibility: 'reviewer' },
   title_page: { label: 'Title Page', visibility: 'editorial' },
   supplementary: { label: 'Supplementary Files', visibility: 'reviewer' },
-  copyright_form: { label: 'Copyright Transfer Form', visibility: 'editorial' },
+  copyright_form: { label: 'Copyright and Author License Agreement', visibility: 'editorial' },
   similarity_report: { label: 'Similarity Report', visibility: 'editorial' },
   ethics_approval: { label: 'Ethics Approval', visibility: 'editorial' },
   author_response: { label: 'Author Response Letter', visibility: 'reviewer' },

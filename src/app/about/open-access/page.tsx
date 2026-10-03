@@ -42,7 +42,15 @@ export default function OpenAccess() {
           <ShieldCheck className="text-olive" size={20} />
           <h3 className="font-serif font-bold text-sm text-text-primary">Author Copyright Retention</h3>
           <p className="text-xs text-text-muted leading-relaxed font-serif">
-            Authors retain full copyright of their published work and grant the journal the right of first publication. Authors can archive preprint/postprint versions freely.
+            Authors retain full copyright of their published work and grant the journal the right of first publication.
+          </p>
+        </div>
+
+        <div className="bg-bg-card border border-border-custom p-5 shadow-sm space-y-2 sm:col-span-2">
+          <Archive className="text-olive" size={20} />
+          <h3 className="font-serif font-bold text-sm text-text-primary">Self-Archiving / Repository Policy</h3>
+          <p className="text-xs text-text-muted leading-relaxed font-serif">
+            Authors are permitted to deposit all versions of their articles (Pre-print, Accepted Manuscript / Post-print, and Version of Record / published PDF) in institutional or thematic repositories and personal websites without any embargo period, with proper citation and DOI link to the original publication.
           </p>
         </div>
 
