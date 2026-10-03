@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import CreativeCommonsLicenseNotice from '@/components/journal/CreativeCommonsLicenseNotice';
 
 export default function Footer() {
   return (
@@ -54,15 +55,10 @@ export default function Footer() {
 
         {/* License & Copyright Bar */}
         <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center text-[11px] font-bold uppercase tracking-[0.15em] gap-4">
-          <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-            <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-sm flex items-center gap-1.5">
-              <span className="font-sans font-bold text-[9px] bg-white/10 px-1 py-0.5 rounded-sm text-white">CC BY-NC-SA 4.0</span>
-              <span className="text-white/60">Diamond Open Access</span>
-            </div>
-            <p className="normal-case tracking-normal text-white/50 font-serif max-w-md text-center md:text-left text-xs leading-relaxed">
-              All articles published in ANQ are licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
-            </p>
-          </div>
+          <CreativeCommonsLicenseNotice
+            className="max-w-[610px] normal-case tracking-normal text-white/70 font-serif text-xs leading-relaxed font-normal"
+            linkClassName="underline hover:text-white transition-colors"
+          />
           <div className="text-right space-y-1">
             <p>ISSN: 3108-7949 (Online) · Published by Okul Yöneticileri Derneği · Diamond Open Access · © 2026 African Nexus Quarterly.</p>
             <p className="text-[10px] text-white/40 normal-case tracking-normal font-serif">

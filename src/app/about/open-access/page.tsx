@@ -1,5 +1,6 @@
 import React from 'react';
 import { Archive, Award, Eye, FileSignature, ShieldCheck } from 'lucide-react';
+import CreativeCommonsLicenseNotice from '@/components/journal/CreativeCommonsLicenseNotice';
 
 export default function OpenAccess() {
   return (
@@ -33,9 +34,11 @@ export default function OpenAccess() {
         <div className="bg-bg-card border border-border-custom p-5 shadow-sm space-y-2">
           <FileSignature className="text-olive" size={20} />
           <h3 className="font-serif font-bold text-sm text-text-primary">Creative Commons License</h3>
-          <p className="text-xs text-text-muted leading-relaxed font-serif">
-            All published content is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) license.
-          </p>
+          <CreativeCommonsLicenseNotice
+            className="text-xs text-text-muted leading-relaxed font-serif"
+            linkClassName="text-link hover:text-link-hover underline transition-colors"
+            stacked
+          />
         </div>
 
         <div className="bg-bg-card border border-border-custom p-5 shadow-sm space-y-2">
