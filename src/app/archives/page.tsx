@@ -213,6 +213,7 @@ export default async function ArchivesPage() {
                                 <Link href={`/volume${issue.volume}/issue${issue.number}/article/${article.id}`} className="hover:underline hover:text-link">
                                   {article.title}
                                 </Link>
+                                {article.pages && <span className="block text-[11px] text-text-muted">Pages: {article.pages}</span>}
                               </li>
                             ))}
                           </ul>

@@ -5,6 +5,7 @@ import db from '@/lib/db';
 import { Book } from 'lucide-react';
 import JournalCover from '@/components/journal/JournalCover';
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
+import DoiLink from '@/components/journal/DoiLink';
 
 interface Issue {
   id: number;
@@ -177,7 +178,7 @@ export default async function CurrentIssuePage() {
 
                     <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 min-w-0 flex-1">
-                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <span className="min-w-0">DOI: <DoiLink doi={article.doi} className="normal-case font-normal text-link hover:underline break-all" /></span>
                         <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                       </div>
                       <div className="flex gap-4 shrink-0">
@@ -214,7 +215,7 @@ export default async function CurrentIssuePage() {
 
                     <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 min-w-0 flex-1">
-                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <span className="min-w-0">DOI: <DoiLink doi={article.doi} className="normal-case font-normal text-link hover:underline break-all" /></span>
                         <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                       </div>
                       <div className="flex gap-4 shrink-0">

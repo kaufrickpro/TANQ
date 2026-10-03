@@ -73,17 +73,17 @@ export default function AuthorGuidelines() {
             Authors retain copyright of their articles published in African Nexus Quarterly. By submitting and publishing in the journal, authors grant the journal the right of first publication.
           </p>
           <p>
-            All articles are published under the Creative Commons Attribution 4.0 International (CC BY 4.0) licence. Under this licence, anyone may copy, distribute, remix, adapt, and build upon the material for any purpose, including commercial purposes, provided appropriate credit is given to the original author(s) and the journal.
+            All articles are published under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) license. Under this license, anyone may copy, distribute, remix, adapt, and build upon the material for non-commercial purposes, provided appropriate credit is given to the original author(s) and the journal, and any new creations are licensed under the identical terms.
           </p>
           <p>
             The full licence text is available at:{' '}
             <a
-              href="https://creativecommons.org/licenses/by/4.0/"
+              href="https://creativecommons.org/licenses/by-nc-sa/4.0/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-link hover:text-link-hover hover:underline transition-colors break-all"
             >
-              https://creativecommons.org/licenses/by/4.0/
+              https://creativecommons.org/licenses/by-nc-sa/4.0/
             </a>
           </p>
         </section>

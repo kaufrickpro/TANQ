@@ -9,6 +9,14 @@ const PDF_FOLDERS: Record<PublicationPdfKind, string> = {
   volume: 'volumes',
 };
 
+// Published private PDFs from the first two issues had plain-text DOI references.
+// Keep their original records intact while serving corrected, checked-in copies.
+const DOI_LINKED_PDFS: Record<string, string> = {
+  '/articles/1786432265675_3_ANQ-Bridging_the_Gaps.pdf': '/articles/ANQ-Article-2-DOI-Links.pdf',
+  '/articles/1786179867676_ANQ-Transformative_Learning.pdf': '/articles/ANQ-Article-7-DOI-Links.pdf',
+  '/articles/1788463905639_ANQ_Cultural_Convergence.pdf': '/articles/ANQ-Article-8-DOI-Links.pdf',
+};
+
 export const MAX_PUBLICATION_PDF_BYTES = 100 * 1024 * 1024;
 
 function isPdf(file: File): boolean {
@@ -66,6 +74,18 @@ function isPrivateBlobUrl(value: string): boolean {
   }
 }
 
+export function doiLinkedPublicationPdf(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' && url.hostname.endsWith('.private.blob.vercel-storage.com')) {
+      return DOI_LINKED_PDFS[url.pathname] ?? value;
+    }
+  } catch {
+    // Relative legacy paths are handled by publicationPdfResponse.
+  }
+  return value;
+}
+
 /**
  * Removes publication files only when they belong to the private Blob store.
  * Legacy public paths and unknown URLs are deliberately left untouched.
@@ -81,6 +101,7 @@ export async function publicationPdfResponse(
   blobUrl: string,
   title: string,
 ): Promise<Response | null> {
+  blobUrl = doiLinkedPublicationPdf(blobUrl);
   // The first published issue used static, same-origin files. Keep those links
   // valid while all new private Blob files are streamed by this application.
   const publicUrl = legacyPublicUrl(blobUrl, request.url);

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import db from '@/lib/db';
 import JournalCover from '@/components/journal/JournalCover';
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
+import DoiLink from '@/components/journal/DoiLink';
 
 interface Article {
   id: number;
@@ -42,7 +43,7 @@ export default async function Home() {
 
   const indexingPartners = [
     { name: 'Google Scholar', status: 'Inclusion Pending' },
-    { name: 'Crossref (DOIs)', status: 'Active Integration' },
+    { name: 'Persistent DOIs (via Zenodo / CERN Repository)', status: '' },
     { name: 'TR Dizin', status: 'Evaluating' },
     { name: 'Scopus', status: 'Pre-evaluating' },
     { name: 'DOAJ', status: 'Diamond OA' }
@@ -127,7 +128,8 @@ export default async function Home() {
                         {article.abstract}
                       </p>
                       <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
-                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <span className="min-w-0">DOI: <DoiLink doi={article.doi} className="normal-case font-normal text-link hover:underline break-all" /></span>
+                        <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                         <div className="flex gap-4 shrink-0">
                           <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
                           <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
@@ -162,7 +164,8 @@ export default async function Home() {
                         {article.abstract}
                       </p>
                       <div className="border-t border-border-light pt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] font-sans font-bold uppercase tracking-wider text-text-muted">
-                        <span className="min-w-0">DOI: <span className="normal-case font-normal text-text-primary break-all">{article.doi}</span></span>
+                        <span className="min-w-0">DOI: <DoiLink doi={article.doi} className="normal-case font-normal text-link hover:underline break-all" /></span>
+                        <span className="shrink-0">Pages: <span className="normal-case font-normal text-text-primary">{article.pages}</span></span>
                         <div className="flex gap-4 shrink-0">
                           <Link href={`/volume${article.volume}/issue${article.number}/article/${article.id}`} className="text-link hover:text-link-hover">Read</Link>
                           <a href={publicationPdfHref('article', article.id)} download className="text-link hover:text-link-hover whitespace-nowrap">PDF ↓</a>
@@ -185,7 +188,7 @@ export default async function Home() {
                 Call for Papers
               </h3>
               <p className="text-xs text-text-primary/80 leading-relaxed font-serif mb-4">
-                We invite researchers, educators, and policy experts to submit original research papers, book reviews, and commentaries for upcoming issues. All articles are published under **Diamond Open Access** (no APCs, no submission fees).
+                We invite researchers, educators, and policy experts to submit original research papers, book reviews, and commentaries for upcoming issues. All articles are published under <strong>Diamond Open Access</strong> (no APCs, no submission fees).
               </p>
               <ul className="text-[11px] text-text-muted space-y-2 list-disc pl-4 mb-5 font-serif">
                 <li>Double-blind peer-review</li>
@@ -213,7 +216,7 @@ export default async function Home() {
                 {indexingPartners.map(idx => (
                   <div key={idx.name} className="flex justify-between items-center text-xs">
                     <span className="font-bold text-text-primary">{idx.name}</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-sm font-sans font-bold uppercase tracking-wider border ${
+                    {idx.status && <span className={`text-[9px] px-2 py-0.5 rounded-sm font-sans font-bold uppercase tracking-wider border ${
                       idx.status.includes('Active') 
                         ? 'bg-olive text-white border-olive' 
                         : idx.status.includes('Diamond') 
@@ -221,7 +224,7 @@ export default async function Home() {
                           : 'bg-white text-text-muted border-border-light'
                     }`}>
                       {idx.status}
-                    </span>
+                    </span>}
                   </div>
                 ))}
               </div>
@@ -233,7 +236,7 @@ export default async function Home() {
                 About Publisher
               </h3>
               <p className="text-xs text-text-primary/85 leading-relaxed font-serif mb-4">
-                Published by **Okul Yöneticileri Derneği** (School Administrators Association), a leading Türkiye-based sivil toplum kuruluşu (NGO) promoting educational governance and leadership research since 2012.
+                Published by <strong>Okul Yöneticileri Derneği</strong> (School Administrators Association), a leading Türkiye-based sivil toplum kuruluşu (NGO) promoting educational governance and leadership research since 2012.
               </p>
               <a 
                 href="http://okulyoneticileri.org.tr" 

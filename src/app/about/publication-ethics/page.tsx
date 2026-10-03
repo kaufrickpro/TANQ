@@ -62,6 +62,38 @@ export default function PublicationEthics() {
           <li><strong>Conflict Disclosure:</strong> Reviewers must notify the editor and decline invitations if they have a conflict of interest due to competitive, collaborative, or other connections with authors or institutions.</li>
         </ul>
       </div>
+
+      <div className="space-y-6 text-sm text-text-primary leading-relaxed font-serif">
+        <section className="space-y-3">
+          <h3 className="text-lg font-serif font-bold text-text-heading border-b border-border-light pb-1.5 uppercase tracking-wide">
+            Corrections, Retractions, and Expressions of Concern
+          </h3>
+          <p>African Nexus Quarterly adheres to the Committee on Publication Ethics (COPE) guidelines for handling errors and academic misconduct:</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Corrections (Erratum/Corrigendum):</strong> Published when minor honest errors or inadvertent omissions occur that do not invalidate the article&apos;s core findings.</li>
+            <li><strong>Retractions:</strong> Issued in severe cases of plagiarism, duplicate submission, data fabrication, or unethical conduct.</li>
+          </ul>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-lg font-serif font-bold text-text-heading border-b border-border-light pb-1.5 uppercase tracking-wide">
+            Appeals and Complaints
+          </h3>
+          <p>
+            Authors who wish to appeal an editorial decision or submit a formal complaint regarding peer-review conduct may contact the Editor-in-Chief directly at{' '}
+            <a href="mailto:editor@anq.aftap.org" className="text-link hover:underline">editor@anq.aftap.org</a>. Appeals must present clear evidence of procedural errors or factual inaccuracies in peer evaluations.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-lg font-serif font-bold text-text-heading border-b border-border-light pb-1.5 uppercase tracking-wide">
+            Research Involving Human Participants &amp; Ethics Approval
+          </h3>
+          <p>
+            For all empirical studies involving human participants, communities, or institutions, authors must obtain formal approval from an institutional ethics committee. The name of the ethics committee, approval date, and protocol/document number must be explicitly stated in the Methodology section of the manuscript.
+          </p>
+        </section>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, Eye, FileSignature, ShieldCheck } from 'lucide-react';
+import { Archive, Award, Eye, FileSignature, ShieldCheck } from 'lucide-react';
 
 export default function OpenAccess() {
   return (
@@ -9,7 +9,7 @@ export default function OpenAccess() {
           Open Access Policy
         </h2>
         <p className="text-sm text-text-primary leading-relaxed font-serif">
-          <em>African Nexus Quarterly</em> (ANQ) operates under a **Diamond Open Access** model. We believe in knowledge democracy and the barrier-free circulation of research findings to advance global scientific exchange.
+          <em>African Nexus Quarterly</em> (ANQ) operates under a <strong>Diamond Open Access</strong> model. We believe in knowledge democracy and the barrier-free circulation of research findings to advance global scientific exchange.
         </p>
       </div>
 
@@ -34,7 +34,7 @@ export default function OpenAccess() {
           <FileSignature className="text-olive" size={20} />
           <h3 className="font-serif font-bold text-sm text-text-primary">Creative Commons License</h3>
           <p className="text-xs text-text-muted leading-relaxed font-serif">
-            All published content is licensed under a **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.
+            All published content is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) license.
           </p>
         </div>
 
@@ -43,6 +43,14 @@ export default function OpenAccess() {
           <h3 className="font-serif font-bold text-sm text-text-primary">Author Copyright Retention</h3>
           <p className="text-xs text-text-muted leading-relaxed font-serif">
             Authors retain full copyright of their published work and grant the journal the right of first publication. Authors can archive preprint/postprint versions freely.
+          </p>
+        </div>
+
+        <div className="bg-bg-card border border-border-custom p-5 shadow-sm space-y-2 sm:col-span-2">
+          <Archive className="text-olive" size={20} />
+          <h3 className="font-serif font-bold text-sm text-text-primary">Digital Preservation Policy</h3>
+          <p className="text-xs text-text-muted leading-relaxed font-serif">
+            All articles published in African Nexus Quarterly are permanently preserved and deposited in Zenodo (CERN Open-Access Digital Repository), ensuring long-term access and preservation of scholarly outputs.
           </p>
         </div>
       </div>

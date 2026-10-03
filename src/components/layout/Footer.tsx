@@ -24,7 +24,7 @@ export default function Footer() {
             <div className="text-xs space-y-1 font-serif">
               <p><strong>Published by:</strong> Okul Yöneticileri Derneği (School Administrators Association)</p>
               <p><strong>Website:</strong> <a href="http://www.okulyoneticileri.org.tr" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">www.okulyoneticileri.org.tr</a></p>
-              <p><strong>Email:</strong> <a href="mailto:bilgi@okulyoneticileri.org.tr" className="underline hover:text-white transition-colors">bilgi@okulyoneticileri.org.tr</a></p>
+              <p><strong>Email:</strong> <a href="mailto:editor@anq.aftap.org" className="underline hover:text-white transition-colors">editor@anq.aftap.org</a></p>
             </div>
           </div>
 
@@ -56,20 +56,17 @@ export default function Footer() {
         <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center text-[11px] font-bold uppercase tracking-[0.15em] gap-4">
           <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
             <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-sm flex items-center gap-1.5">
-              <span className="font-sans font-bold text-[9px] bg-white/10 px-1 py-0.5 rounded-sm text-white">CC BY-NC 4.0</span>
+              <span className="font-sans font-bold text-[9px] bg-white/10 px-1 py-0.5 rounded-sm text-white">CC BY-NC-SA 4.0</span>
               <span className="text-white/60">Diamond Open Access</span>
             </div>
             <p className="normal-case tracking-normal text-white/50 font-serif max-w-md text-center md:text-left text-xs leading-relaxed">
-              All articles published in ANQ are licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.
+              All articles published in ANQ are licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
             </p>
           </div>
           <div className="text-right space-y-1">
-            <p>ISSN: 3108-7949 · Volume 01 · Issue 01</p>
+            <p>ISSN: 3108-7949 (Online) · Published by Okul Yöneticileri Derneği · Diamond Open Access · © 2026 African Nexus Quarterly.</p>
             <p className="text-[10px] text-white/40 normal-case tracking-normal font-serif">
               Cover photo by Kévin et Laurianne Langlais
-            </p>
-            <p className="text-[10px] text-white/40 pt-1">
-              &copy; {new Date().getFullYear()} African Nexus Quarterly.
             </p>
           </div>
         </div>

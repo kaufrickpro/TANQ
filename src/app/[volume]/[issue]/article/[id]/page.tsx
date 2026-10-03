@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import db from '@/lib/db';
 import CitationBlock from '@/components/journal/CitationBlock';
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
+import DoiLink from '@/components/journal/DoiLink';
 
 interface Article {
   id: number;
@@ -168,7 +169,7 @@ export default async function ArticlePage({ params }: PageProps) {
                 </div>
                 <div>
                   <span className="font-bold text-xs font-sans uppercase tracking-wider block text-text-muted">DOI Reference</span>
-                  <span className="font-mono text-xs text-text-primary/90">{article.doi}</span>
+                  <DoiLink doi={article.doi} className="font-mono text-xs text-link hover:underline break-all" />
                 </div>
                 <div>
                   <span className="font-bold text-xs font-sans uppercase tracking-wider block text-text-muted">Page Range</span>

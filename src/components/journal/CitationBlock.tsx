@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Copy, Check, Quote } from 'lucide-react';
+import { doiUrl } from '@/lib/doi';
 
 interface CitationBlockProps {
   title: string;
@@ -68,17 +69,20 @@ export default function CitationBlock({
     return `${authorList[0]} et al.`;
   };
 
+  const citationDoiUrl = doiUrl(doi);
+
   const getCitationText = () => {
     const formattedAuthors = formatAuthors(format);
     const cleanTitle = title.endsWith('.') ? title.slice(0, -1) : title;
+    const doiSuffix = citationDoiUrl ? ` ${citationDoiUrl}` : '';
 
     switch (format) {
       case 'APA':
-        return `${formattedAuthors} (${year}). ${cleanTitle}. African Nexus Quarterly, ${volume}(${number}), ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors} (${year}). ${cleanTitle}. African Nexus Quarterly, ${volume}(${number}), ${pages}.${doiSuffix}`;
       case 'MLA':
-        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly, vol. ${volume}, no. ${number}, ${year}, pp. ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly, vol. ${volume}, no. ${number}, ${year}, pp. ${pages}.${doiSuffix}`;
       case 'Chicago':
-        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly ${volume}, no. ${number} (${year}): ${pages}. https://doi.org/${doi}`;
+        return `${formattedAuthors}. "${cleanTitle}." African Nexus Quarterly ${volume}, no. ${number} (${year}): ${pages}.${doiSuffix}`;
       default:
         return '';
     }
@@ -117,7 +121,14 @@ export default function CitationBlock({
 
       <div className="bg-sand/10 border border-border-light p-4 rounded-sm text-text-primary leading-relaxed font-serif break-words">
         <p className="not-italic">
-          {citation}
+          {citationDoiUrl && citation.endsWith(citationDoiUrl) ? (
+            <>
+              {citation.slice(0, -citationDoiUrl.length)}
+              <a href={citationDoiUrl} target="_blank" rel="noopener noreferrer" className="text-link hover:underline break-all">
+                {citationDoiUrl}
+              </a>
+            </>
+          ) : citation}
         </p>
       </div>
 

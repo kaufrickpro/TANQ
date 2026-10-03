@@ -13,7 +13,7 @@ vi.mock('@/lib/blob', () => ({
 }));
 
 import { publicationPdfHref } from '@/lib/publicationPdfPaths';
-import { publicationPdfResponse, removePublicationPdf, savePublicationPdf } from '@/lib/publicationPdfs';
+import { doiLinkedPublicationPdf, publicationPdfResponse, removePublicationPdf, savePublicationPdf } from '@/lib/publicationPdfs';
 
 describe('publication PDFs', () => {
   beforeEach(() => {
@@ -77,6 +77,22 @@ describe('publication PDFs', () => {
     expect(response?.headers.get('location')).toBe(
       'https://anq.aftap.org/volumes/ANQ-Volume-1-2026.pdf',
     );
+    expect(getMock).not.toHaveBeenCalled();
+  });
+
+  it('serves the DOI-linked copy for the exact published private PDF', async () => {
+    const original = 'https://store.private.blob.vercel-storage.com/articles/1788463905639_ANQ_Cultural_Convergence.pdf';
+    expect(doiLinkedPublicationPdf(original)).toBe('/articles/ANQ-Article-8-DOI-Links.pdf');
+    expect(doiLinkedPublicationPdf('https://example.com/articles/1788463905639_ANQ_Cultural_Convergence.pdf')).toContain('example.com');
+
+    const response = await publicationPdfResponse(
+      new Request('https://anq.aftap.org/api/publications/article/8/pdf'),
+      original,
+      'Cultural convergence',
+    );
+
+    expect(response?.status).toBe(307);
+    expect(response?.headers.get('location')).toBe('https://anq.aftap.org/articles/ANQ-Article-8-DOI-Links.pdf');
     expect(getMock).not.toHaveBeenCalled();
   });
 
