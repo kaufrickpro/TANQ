@@ -13,6 +13,7 @@ export default function AboutLayout({ children }: { children: React.ReactNode })
     { name: 'Author Guidelines', href: '/about/author-guidelines' },
     { name: 'Publication Ethics', href: '/about/publication-ethics' },
     { name: 'Open Access Policy', href: '/about/open-access' },
+    { name: 'Indexes', href: '/about/indexes' },
     { name: 'Submissions', href: '/about/submissions' },
   ];
 
